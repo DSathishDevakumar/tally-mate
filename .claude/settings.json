@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Get-NetTCPConnection -LocalPort 4000 -State Listen | Select-Object -ExpandProperty OwningProcess | ForEach-Object { Get-Process -Id $_ } | Select-Object Id, ProcessName, Path)",
+      "Bash(npx tsx *)",
+      "Bash(rm \"e:/Learning/Grocery-Tracker/backend/_check-db.ts\")",
+      "WebFetch(domain:docs.expo.dev)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:8081 --max-time 2)",
+      "PowerShell(Get-CimInstance Win32_Process -Filter \"name='node.exe'\")",
+      "Bash(powershell -Command \"Get-CimInstance Win32_Process -Filter \\\\\"name='node.exe'\\\\\" | Select-Object ProcessId, CommandLine | Format-List\")"
+    ],
+    "additionalDirectories": [
+      "e:\\Learning\\Grocery-Tracker\\backend"
+    ]
+  }
+}

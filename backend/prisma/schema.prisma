@@ -1,0 +1,291 @@
+// Grocery Shop Credit Ledger - Database Schema
+//
+// Design notes:
+// - Every business table carries shopId, even though only one shop exists today,
+//   so multi-shop support later needs no schema redesign.
+// - Auth identity itself lives in Supabase Auth (the `auth.users` table, managed
+//   by Supabase and not represented here). Our `User` model mirrors each signed-in
+//   person and links back to Supabase Auth via `supabaseUserId`.
+// - AI-assisted entries (voice/photo) are never auto-saved as trusted data: every
+//   LedgerEntry carries a `source` + `isConfirmed` flag, and rows only count toward
+//   balances/bills once a human has confirmed them.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL") // pooled connection, used at runtime
+  directUrl = env("DIRECT_URL")   // direct connection, used by `prisma migrate`
+}
+
+// ---------------------------------------------------------------------------
+// Tenancy & Identity
+// ---------------------------------------------------------------------------
+
+model Shop {
+  id        String   @id @default(uuid())
+  name      String
+  ownerName String
+  phone     String?
+  address   String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users     User[]
+  customers Customer[]
+  products  Product[]
+  entries   LedgerEntry[]
+  bills     Bill[]
+  payments  Payment[]
+  notifications Notification[]
+  deviceTokens  DeviceToken[]
+
+  @@map("shops")
+}
+
+enum Role {
+  SUPER_ADMIN
+  SHOP_OWNER
+  CUSTOMER
+}
+
+// One row per person who can sign in. `shopId` is null only for SUPER_ADMIN,
+// who is not scoped to a single shop.
+model User {
+  id             String   @id @default(uuid())
+  supabaseUserId String   @unique // maps to Supabase Auth `auth.users.id`
+  shopId         String?
+  role           Role     @default(SHOP_OWNER)
+  name           String
+  email          String   @unique
+  phone          String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  shop              Shop?          @relation(fields: [shopId], references: [id])
+  customerProfile    Customer?      @relation("CustomerUser")
+  recordedEntries    LedgerEntry[]  @relation("EntryRecordedBy")
+  recordedPayments   Payment[]      @relation("PaymentRecordedBy")
+  deviceTokens       DeviceToken[]
+
+  @@index([shopId])
+  @@map("users")
+}
+
+// ---------------------------------------------------------------------------
+// Customers & Catalog
+// ---------------------------------------------------------------------------
+
+model Customer {
+  id             String   @id @default(uuid())
+  shopId         String
+  // Optional link to a User account, set only if the customer is granted
+  // read-only self-view login access.
+  userId         String?  @unique
+  name           String
+  phone          String?
+  address        String?
+  creditLimit    Decimal? @db.Decimal(10, 2)
+  openingBalance Decimal  @default(0) @db.Decimal(10, 2)
+  isActive       Boolean  @default(true)
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  shop     Shop          @relation(fields: [shopId], references: [id])
+  user     User?         @relation("CustomerUser", fields: [userId], references: [id])
+  entries  LedgerEntry[]
+  bills    Bill[]
+  payments Payment[]
+  notifications Notification[]
+
+  @@index([shopId])
+  @@index([shopId, isActive])
+  @@map("customers")
+}
+
+model Product {
+  id            String   @id @default(uuid())
+  shopId        String
+  name          String
+  unit          String   // e.g. "kg", "litre", "pcs", "packet"
+  standardPrice Decimal  @db.Decimal(10, 2)
+  category      String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  shop    Shop          @relation(fields: [shopId], references: [id])
+  entries LedgerEntry[]
+
+  @@index([shopId])
+  @@index([shopId, isActive])
+  @@map("products")
+}
+
+// ---------------------------------------------------------------------------
+// Daily Entry / Digital Notebook
+// ---------------------------------------------------------------------------
+
+enum EntrySource {
+  MANUAL
+  VOICE
+  PHOTO
+}
+
+model LedgerEntry {
+  id          String      @id @default(uuid())
+  shopId      String
+  customerId  String
+  // Most shops just log a running total per customer visit, not itemized
+  // purchases, so these are optional — set only if a specific product from
+  // the catalog is attached to the entry.
+  productId   String?
+  quantity    Decimal?    @db.Decimal(10, 3)
+  unitPrice   Decimal?    @db.Decimal(10, 2)
+  totalAmount Decimal     @db.Decimal(10, 2)
+  entryDate   DateTime    @default(now())
+
+  source          EntrySource @default(MANUAL)
+  // Free-text description of what was purchased (typed manually, or an
+  // AI-derived summary for voice/photo entries) — not structured line items.
+  note            String?
+  // Raw inputs kept for audit/debugging of AI extraction quality.
+  rawVoiceText    String?
+  sourcePhotoUrl  String?     // Supabase Storage URL of the notebook photo
+  aiConfidence    Decimal?    @db.Decimal(4, 3) // 0.000 - 1.000, null for manual entries
+  // AI-extracted rows must be reviewed by a human before they count toward
+  // balances/bills. Manual entries are confirmed at creation time.
+  isConfirmed     Boolean     @default(true)
+
+  // Set once this entry has been rolled into a monthly Bill; null while open.
+  billId String?
+
+  recordedByUserId String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shop         Shop     @relation(fields: [shopId], references: [id])
+  customer     Customer @relation(fields: [customerId], references: [id])
+  product      Product? @relation(fields: [productId], references: [id])
+  bill         Bill?    @relation(fields: [billId], references: [id])
+  recordedBy   User     @relation("EntryRecordedBy", fields: [recordedByUserId], references: [id])
+
+  @@index([shopId])
+  @@index([shopId, customerId, entryDate])
+  @@index([billId])
+  @@index([shopId, isConfirmed])
+  @@map("ledger_entries")
+}
+
+// ---------------------------------------------------------------------------
+// Billing & Payments
+// ---------------------------------------------------------------------------
+
+enum BillStatus {
+  UNPAID
+  PARTIAL
+  PAID
+}
+
+model Bill {
+  id                 String     @id @default(uuid())
+  shopId             String
+  customerId         String
+  billingPeriodStart DateTime
+  billingPeriodEnd   DateTime
+  previousBalance    Decimal    @default(0) @db.Decimal(10, 2)
+  currentMonthTotal  Decimal    @db.Decimal(10, 2)
+  totalDue           Decimal    @db.Decimal(10, 2) // previousBalance + currentMonthTotal
+  amountPaid         Decimal    @default(0) @db.Decimal(10, 2)
+  status             BillStatus @default(UNPAID)
+  dueDate             DateTime?
+  pdfUrl              String?   // Supabase Storage URL of the generated PDF
+  generatedAt         DateTime  @default(now())
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  shop     Shop          @relation(fields: [shopId], references: [id])
+  customer Customer      @relation(fields: [customerId], references: [id])
+  entries  LedgerEntry[]
+  payments Payment[]
+
+  @@index([shopId])
+  @@index([shopId, customerId])
+  @@index([shopId, status])
+  @@map("bills")
+}
+
+model Payment {
+  id                String   @id @default(uuid())
+  shopId            String
+  customerId        String
+  billId            String?
+  amount            Decimal  @db.Decimal(10, 2)
+  paymentMethod     String   @default("cash") // cash, upi, bank_transfer, other
+  paymentDate       DateTime @default(now())
+  notes             String?
+  recordedByUserId  String
+  createdAt         DateTime @default(now())
+
+  shop       Shop     @relation(fields: [shopId], references: [id])
+  customer   Customer @relation(fields: [customerId], references: [id])
+  bill       Bill?    @relation(fields: [billId], references: [id])
+  recordedBy User     @relation("PaymentRecordedBy", fields: [recordedByUserId], references: [id])
+
+  @@index([shopId])
+  @@index([shopId, customerId])
+  @@index([billId])
+  @@map("payments")
+}
+
+// ---------------------------------------------------------------------------
+// Notifications
+// ---------------------------------------------------------------------------
+
+enum NotificationType {
+  BILL_GENERATED
+  PAYMENT_DUE_REMINDER
+  PAYMENT_RECEIVED
+  GENERAL
+}
+
+model DeviceToken {
+  id        String   @id @default(uuid())
+  shopId    String
+  userId    String
+  token     String   @unique // FCM push token
+  platform  String   // ios, android
+  createdAt DateTime @default(now())
+
+  shop Shop @relation(fields: [shopId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([shopId])
+  @@index([userId])
+  @@map("device_tokens")
+}
+
+model Notification {
+  id         String           @id @default(uuid())
+  shopId     String
+  customerId String?
+  type       NotificationType
+  title      String
+  body       String
+  isRead     Boolean          @default(false)
+  sentAt     DateTime?
+  createdAt  DateTime         @default(now())
+
+  shop     Shop      @relation(fields: [shopId], references: [id])
+  customer Customer? @relation(fields: [customerId], references: [id])
+
+  @@index([shopId])
+  @@index([shopId, customerId])
+  @@map("notifications")
+}
