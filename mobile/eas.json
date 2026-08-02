@@ -16,7 +16,7 @@
       "env": {
         "EXPO_PUBLIC_SUPABASE_URL": "https://dznkynastqshahhpzwpl.supabase.co",
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_xrZXYqRx3JI1kaDztFdWqw_ct61Xo20",
-        "EXPO_PUBLIC_API_URL": "http://10.221.38.179:4000"
+        "EXPO_PUBLIC_API_URL": "https://tally-mate.onrender.com"
       }
     },
     "production": {

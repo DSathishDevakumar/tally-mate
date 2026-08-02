@@ -24,6 +24,7 @@ export async function syncUser(req: Request, res: Response) {
 
   const { data, error } = await supabaseAdmin.auth.getUser(token);
   if (error || !data.user) {
+    console.error("syncUser: Supabase rejected token:", error);
     return res.status(401).json({ error: "Invalid or expired token" });
   }
 

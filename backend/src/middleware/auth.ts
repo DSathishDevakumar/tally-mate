@@ -22,6 +22,7 @@ export const requireAuth = asyncHandler(async function requireAuth(req: Request,
 
   const { data, error } = await supabaseAdmin.auth.getUser(token);
   if (error || !data.user) {
+    console.error("requireAuth: Supabase rejected token:", error);
     return res.status(401).json({ error: "Invalid or expired token" });
   }
 
