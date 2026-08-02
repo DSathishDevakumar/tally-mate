@@ -10,11 +10,12 @@ import { getCustomerBalanceComponents, getShopBalanceMaps, runningBalanceOf } fr
 export function withRunningBalance<T extends { openingBalance: Prisma.Decimal }>(
   customer: T,
   unbilledTotal: number,
-  outstandingBillTotal: number
+  outstandingBillTotal: number,
+  unappliedPaymentsTotal = 0
 ) {
   return {
     ...customer,
-    runningBalance: runningBalanceOf(customer.openingBalance, unbilledTotal, outstandingBillTotal),
+    runningBalance: runningBalanceOf(customer.openingBalance, unbilledTotal, outstandingBillTotal, unappliedPaymentsTotal),
   };
 }
 
@@ -41,10 +42,10 @@ export async function listCustomers(req: Request, res: Response) {
     orderBy: { name: "asc" },
   });
 
-  const { unbilledMap, billsMap } = await getShopBalanceMaps(shopId);
+  const { unbilledMap, billsMap, unappliedPaymentsMap } = await getShopBalanceMaps(shopId);
 
   const result = customers.map((c) =>
-    withRunningBalance(c, unbilledMap.get(c.id) ?? 0, billsMap.get(c.id) ?? 0)
+    withRunningBalance(c, unbilledMap.get(c.id) ?? 0, billsMap.get(c.id) ?? 0, unappliedPaymentsMap.get(c.id) ?? 0)
   );
 
   res.json({ customers: result });
@@ -114,8 +115,8 @@ export async function getCustomer(req: Request, res: Response) {
     return res.status(404).json({ error: "Customer not found" });
   }
 
-  const { unbilledTotal, outstandingBillTotal } = await getCustomerBalanceComponents(customer.id);
-  res.json({ customer: withRunningBalance(customer, unbilledTotal, outstandingBillTotal) });
+  const { unbilledTotal, outstandingBillTotal, unappliedPaymentsTotal } = await getCustomerBalanceComponents(customer.id);
+  res.json({ customer: withRunningBalance(customer, unbilledTotal, outstandingBillTotal, unappliedPaymentsTotal) });
 }
 
 export async function updateCustomer(req: Request, res: Response) {
@@ -152,6 +153,6 @@ export async function updateCustomer(req: Request, res: Response) {
     },
   });
 
-  const { unbilledTotal, outstandingBillTotal } = await getCustomerBalanceComponents(customer.id);
-  res.json({ customer: withRunningBalance(customer, unbilledTotal, outstandingBillTotal) });
+  const { unbilledTotal, outstandingBillTotal, unappliedPaymentsTotal } = await getCustomerBalanceComponents(customer.id);
+  res.json({ customer: withRunningBalance(customer, unbilledTotal, outstandingBillTotal, unappliedPaymentsTotal) });
 }

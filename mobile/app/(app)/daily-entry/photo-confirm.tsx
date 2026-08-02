@@ -3,6 +3,7 @@ import { Picker } from "@react-native-picker/picker";
 import { useEffect, useMemo, useState } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { useTranslation } from "react-i18next";
 import { createCustomersBulk, createEntriesBulk, listCustomers } from "../../../src/lib/api";
 import type { BulkEntryInput, Customer, PhotoDraftRow } from "../../../src/types";
 import { Badge } from "../../../src/components/Badge";
@@ -33,6 +34,7 @@ function confidenceTone(confidence: number): "success" | "warning" | "danger" {
 }
 
 export default function PhotoConfirm() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { rows: rowsParam } = useLocalSearchParams<{ rows: string }>();
   const draftRows: PhotoDraftRow[] = useMemo(() => JSON.parse(rowsParam ?? "[]"), [rowsParam]);
@@ -41,7 +43,11 @@ export default function PhotoConfirm() {
   const [rows, setRows] = useState<EditableRow[]>(() =>
     draftRows.map((r, i) => ({
       key: String(i),
-      customerId: r.matchedCustomer?.id ?? (r.extractedCustomerName ? NEW_CUSTOMER_VALUE : ""),
+      // Only default straight to "create new customer" when there's an extracted name and
+      // nothing similar already exists — if there are suggestions, force a deliberate choice
+      // so a near-miss transliteration doesn't silently create a duplicate customer.
+      customerId:
+        r.matchedCustomer?.id ?? (r.extractedCustomerName && r.suggestedCustomers.length === 0 ? NEW_CUSTOMER_VALUE : ""),
       newCustomerName: r.matchedCustomer ? "" : (r.extractedCustomerName ?? ""),
       newCustomerPhone: "",
       amount: r.amount != null ? String(r.amount) : "",
@@ -70,22 +76,22 @@ export default function PhotoConfirm() {
 
   async function handleSaveAll() {
     if (rows.length === 0) {
-      Alert.alert("Nothing to save", "All rows have been removed.");
+      Alert.alert(t("photoEntry.nothingToSaveTitle"), t("photoEntry.nothingToSaveMessage"));
       return;
     }
 
     for (const [i, row] of rows.entries()) {
       if (!row.customerId) {
-        Alert.alert("Missing customer", `Row ${i + 1} needs a customer selected.`);
+        Alert.alert(t("photoEntry.missingCustomerTitle"), t("photoEntry.missingCustomerMessage", { number: i + 1 }));
         return;
       }
       if (row.customerId === NEW_CUSTOMER_VALUE && !row.newCustomerName.trim()) {
-        Alert.alert("Missing name", `Row ${i + 1}'s new customer needs a name.`);
+        Alert.alert(t("photoEntry.missingNameTitle"), t("photoEntry.missingNameMessage", { number: i + 1 }));
         return;
       }
       const amt = Number(row.amount);
       if (!row.amount || !Number.isFinite(amt) || amt <= 0) {
-        Alert.alert("Invalid amount", `Row ${i + 1} needs a valid amount greater than 0.`);
+        Alert.alert(t("photoEntry.invalidAmountTitle"), t("photoEntry.invalidAmountMessage", { number: i + 1 }));
         return;
       }
     }
@@ -105,28 +111,33 @@ export default function PhotoConfirm() {
       let newIndex = 0;
       const entries: BulkEntryInput[] = rows.map((r) => {
         const customerId = r.customerId === NEW_CUSTOMER_VALUE ? createdCustomers[newIndex++]!.id : r.customerId;
+        const draft = draftRows[Number(r.key)];
         return {
           customerId,
           amount: Number(r.amount),
           note: r.note.trim() || undefined,
           source: "PHOTO",
+          customerNameNative: draft?.extractedCustomerNameNative ?? undefined,
           aiConfidence: r.confidence,
         };
       });
 
       await createEntriesBulk(entries);
 
-      Alert.alert(
-        "Saved",
-        `Saved ${entries.length} ${entries.length === 1 ? "entry" : "entries"}${
-          createdCustomers.length
-            ? ` and added ${createdCustomers.length} new customer${createdCustomers.length === 1 ? "" : "s"}`
-            : ""
-        }.`
-      );
+      const entriesMessage = t("photoEntry.savedMessageEntries", {
+        count: entries.length,
+        noun: t(entries.length === 1 ? "photoEntry.entrySingular" : "photoEntry.entryPlural"),
+      });
+      const customersMessage = createdCustomers.length
+        ? t("photoEntry.savedMessageWithCustomers", {
+            count: createdCustomers.length,
+            customerNoun: t(createdCustomers.length === 1 ? "photoEntry.customerSingular" : "photoEntry.customerPlural"),
+          })
+        : "";
+      Alert.alert(t("photoEntry.savedTitle"), `${entriesMessage}${customersMessage}.`);
       router.back();
     } catch (err) {
-      Alert.alert("Failed to save", err instanceof Error ? err.message : "Please try again.");
+      Alert.alert(t("common.saveFailedTitle"), err instanceof Error ? err.message : t("common.tryAgain"));
     } finally {
       setIsSaving(false);
     }
@@ -139,8 +150,10 @@ export default function PhotoConfirm() {
   return (
     <Screen scroll>
       <Text style={styles.summary}>
-        Found {draftRows.length} {draftRows.length === 1 ? "entry" : "entries"} in this photo. Review each one
-        below, remove any that were misread, then save them all at once.
+        {t("photoEntry.summary", {
+          count: draftRows.length,
+          noun: t(draftRows.length === 1 ? "photoEntry.entrySingular" : "photoEntry.entryPlural"),
+        })}
       </Text>
 
       {rows.map((row, index) => {
@@ -148,7 +161,7 @@ export default function PhotoConfirm() {
         return (
           <Card key={row.key} style={styles.rowCard}>
             <View style={styles.rowHeader}>
-              <Text style={styles.rowTitle}>Row {index + 1}</Text>
+              <Text style={styles.rowTitle}>{t("photoEntry.rowLabel", { number: index + 1 })}</Text>
               <View style={styles.rowHeaderRight}>
                 <Badge label={`${Math.round(row.confidence * 100)}%`} tone={confidenceTone(row.confidence)} />
                 <Pressable onPress={() => removeRow(row.key)} hitSlop={8}>
@@ -158,46 +171,68 @@ export default function PhotoConfirm() {
             </View>
 
             {draft?.extractedCustomerName && !draft.matchedCustomer ? (
-              <Text style={styles.readAs}>Read as "{draft.extractedCustomerName}"</Text>
+              <Text style={styles.readAs}>
+                {t("photoEntry.readAs", { name: draft.extractedCustomerName })}
+                {draft.extractedCustomerNameNative
+                  ? t("photoEntry.readAsNative", { native: draft.extractedCustomerNameNative })
+                  : ""}
+              </Text>
+            ) : null}
+
+            {draft && !draft.matchedCustomer && draft.suggestedCustomers.length > 0 ? (
+              <View style={styles.suggestionBlock}>
+                <Text style={styles.suggestionLabel}>{t("common.suggestedLabel")}</Text>
+                <View style={styles.suggestionRow}>
+                  {draft.suggestedCustomers.map((s) => (
+                    <Pressable
+                      key={s.id}
+                      style={styles.suggestionChip}
+                      onPress={() => updateRow(row.key, { customerId: s.id })}
+                    >
+                      <Text style={styles.suggestionChipText}>{s.name}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
             ) : null}
 
             <PickerField
-              label="Customer"
+              label={t("common.customer")}
               icon="person-outline"
               required
               selectedValue={row.customerId}
               onValueChange={(value) => updateRow(row.key, { customerId: value })}
             >
-              <Picker.Item label="Select a customer..." value="" />
+              <Picker.Item label={t("common.selectCustomerPlaceholder")} value="" />
               {customers.map((c) => (
                 <Picker.Item key={c.id} label={c.name} value={c.id} />
               ))}
-              <Picker.Item label="+ Create new customer..." value={NEW_CUSTOMER_VALUE} color={colors.accent} />
+              <Picker.Item label={t("common.createNewCustomerOption")} value={NEW_CUSTOMER_VALUE} color={colors.accent} />
             </PickerField>
 
             {row.customerId === NEW_CUSTOMER_VALUE ? (
               <View style={styles.newCustomerBox}>
                 <TextField
-                  label="New Customer Name"
+                  label={t("photoEntry.newCustomerNameLabel")}
                   icon="person-add-outline"
                   required
                   value={row.newCustomerName}
                   onChangeText={(text) => updateRow(row.key, { newCustomerName: text })}
-                  placeholder="Customer name"
+                  placeholder={t("customers.namePlaceholder")}
                 />
                 <TextField
-                  label="Phone (optional)"
+                  label={t("common.phoneOptional")}
                   icon="call-outline"
                   value={row.newCustomerPhone}
                   onChangeText={(text) => updateRow(row.key, { newCustomerPhone: text })}
-                  placeholder="Phone number"
+                  placeholder={t("common.phonePlaceholder")}
                   keyboardType="phone-pad"
                 />
               </View>
             ) : null}
 
             <TextField
-              label="Amount"
+              label={t("common.amount")}
               icon="cash-outline"
               required
               value={row.amount}
@@ -207,21 +242,21 @@ export default function PhotoConfirm() {
             />
 
             <TextField
-              label="Note (optional)"
+              label={t("common.noteOptional")}
               icon="document-text-outline"
               value={row.note}
               onChangeText={(text) => updateRow(row.key, { note: text })}
-              placeholder="e.g. rice, oil, soap"
+              placeholder={t("common.itemsPlaceholder")}
             />
           </Card>
         );
       })}
 
       {rows.length === 0 ? (
-        <Text style={styles.emptyText}>All rows removed — go back and retake the photo if needed.</Text>
+        <Text style={styles.emptyText}>{t("photoEntry.allRemoved")}</Text>
       ) : (
         <Button
-          label={`Save All (${rows.length})`}
+          label={t("photoEntry.saveAllButton", { count: rows.length })}
           onPress={handleSaveAll}
           loading={isSaving}
           style={{ marginTop: spacing.sm }}
@@ -238,6 +273,18 @@ const styles = StyleSheet.create({
   rowTitle: { ...typography.label, color: colors.textSecondary, textTransform: "uppercase" },
   rowHeaderRight: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   readAs: { ...typography.caption, color: colors.textMuted, fontStyle: "italic", marginBottom: spacing.sm },
+  suggestionBlock: { marginBottom: spacing.sm },
+  suggestionLabel: { ...typography.label, color: colors.textSecondary, marginBottom: spacing.xs },
+  suggestionRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
+  suggestionChip: {
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    borderRadius: radius.full,
+    paddingVertical: 6,
+    paddingHorizontal: spacing.sm + 4,
+  },
+  suggestionChipText: { ...typography.caption, color: colors.primaryDark, fontWeight: "700" },
   newCustomerBox: {
     backgroundColor: colors.accentLight,
     borderRadius: radius.md,

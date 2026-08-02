@@ -2,7 +2,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
 import { useEffect, useMemo, useState } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Alert, Modal, StyleSheet, Text, View } from "react-native";
+import { Alert, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { useTranslation } from "react-i18next";
 import { createCustomer, createEntry, listCustomers } from "../../../src/lib/api";
 import type { Customer, VoiceDraft } from "../../../src/types";
 import { Button } from "../../../src/components/Button";
@@ -16,6 +17,7 @@ import { colors, radius, spacing, typography } from "../../../src/theme/theme";
 const NEW_CUSTOMER_VALUE = "__new__";
 
 export default function VoiceConfirm() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { draft: draftParam } = useLocalSearchParams<{ draft: string }>();
   const draft: VoiceDraft = useMemo(() => JSON.parse(draftParam ?? "{}"), [draftParam]);
@@ -52,7 +54,7 @@ export default function VoiceConfirm() {
 
   async function handleCreateCustomer() {
     if (!newCustomerName.trim()) {
-      Alert.alert("Name required", "Please enter the customer's name.");
+      Alert.alert(t("customers.nameRequiredTitle"), t("customers.nameRequiredMessage"));
       return;
     }
 
@@ -66,7 +68,7 @@ export default function VoiceConfirm() {
       setCustomerId(customer.id);
       setIsCreatingCustomer(false);
     } catch (err) {
-      Alert.alert("Failed to create customer", err instanceof Error ? err.message : "Please try again.");
+      Alert.alert(t("voiceEntry.createCustomerFailedTitle"), err instanceof Error ? err.message : t("common.tryAgain"));
     } finally {
       setIsSavingCustomer(false);
     }
@@ -74,12 +76,12 @@ export default function VoiceConfirm() {
 
   async function handleSave() {
     if (!customerId) {
-      Alert.alert("Customer required", "Please select which customer this entry belongs to.");
+      Alert.alert(t("dailyEntry.customerRequiredTitle"), t("voiceEntry.customerRequiredMessage"));
       return;
     }
     const parsedAmount = Number(amount);
     if (!amount || !Number.isFinite(parsedAmount) || parsedAmount <= 0) {
-      Alert.alert("Amount required", "Please enter a valid amount greater than 0.");
+      Alert.alert(t("common.amountRequiredTitle"), t("common.amountRequiredMessage"));
       return;
     }
 
@@ -91,11 +93,12 @@ export default function VoiceConfirm() {
         note: note.trim() || undefined,
         source: "VOICE",
         rawVoiceText: draft.transcript,
+        customerNameNative: draft.extractedCustomerNameNative ?? undefined,
         aiConfidence: draft.confidence,
       });
       router.back();
     } catch (err) {
-      Alert.alert("Failed to save", err instanceof Error ? err.message : "Please try again.");
+      Alert.alert(t("common.saveFailedTitle"), err instanceof Error ? err.message : t("common.tryAgain"));
     } finally {
       setIsSaving(false);
     }
@@ -105,39 +108,57 @@ export default function VoiceConfirm() {
     return <LoadingView />;
   }
 
-  const needsAttention = !draft.matchedCustomer;
+  const needsAttention = !customerId;
 
   return (
     <Screen scroll>
       <Card style={styles.transcriptCard}>
         <View style={styles.transcriptHeader}>
           <Ionicons name="mic" size={14} color={colors.accent} />
-          <Text style={styles.transcriptLabel}>Heard</Text>
+          <Text style={styles.transcriptLabel}>{t("voiceEntry.heardLabel")}</Text>
         </View>
-        <Text style={styles.transcript}>"{draft.transcript || "(no speech detected)"}"</Text>
+        <Text style={styles.transcript}>"{draft.transcript || t("voiceEntry.noSpeechDetected")}"</Text>
       </Card>
+
+      {draft.extractedCustomerNameNative ? (
+        <Text style={styles.nativeName}>{t("voiceEntry.writtenAs", { name: draft.extractedCustomerNameNative })}</Text>
+      ) : null}
 
       {needsAttention ? (
         <Card style={styles.warningCard}>
-          <Ionicons name="alert-circle" size={18} color={colors.warning} />
-          <Text style={styles.warningText}>
-            {draft.extractedCustomerName
-              ? `Couldn't confidently match "${draft.extractedCustomerName}" to a customer — please pick one below.`
-              : "No customer name was recognized — please select one below."}
-          </Text>
+          <View style={styles.warningRow}>
+            <Ionicons name="alert-circle" size={18} color={colors.warning} />
+            <Text style={styles.warningText}>
+              {draft.extractedCustomerName
+                ? t("voiceEntry.matchFailedWithName", { name: draft.extractedCustomerName })
+                : t("voiceEntry.matchFailedNoName")}
+            </Text>
+          </View>
+          {draft.suggestedCustomers.length > 0 ? (
+            <View>
+              <Text style={styles.suggestionLabel}>{t("common.suggestedLabel")}</Text>
+              <View style={styles.suggestionRow}>
+                {draft.suggestedCustomers.map((s) => (
+                  <Pressable key={s.id} style={styles.suggestionChip} onPress={() => setCustomerId(s.id)}>
+                    <Text style={styles.suggestionChipText}>{s.name}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          ) : null}
         </Card>
       ) : null}
 
-      <PickerField label="Customer" icon="person-outline" required selectedValue={customerId} onValueChange={handleCustomerPickerChange}>
-        <Picker.Item label="Select a customer..." value="" />
+      <PickerField label={t("common.customer")} icon="person-outline" required selectedValue={customerId} onValueChange={handleCustomerPickerChange}>
+        <Picker.Item label={t("common.selectCustomerPlaceholder")} value="" />
         {customers.map((c) => (
           <Picker.Item key={c.id} label={c.name} value={c.id} />
         ))}
-        <Picker.Item label="+ Create new customer..." value={NEW_CUSTOMER_VALUE} color={colors.accent} />
+        <Picker.Item label={t("common.createNewCustomerOption")} value={NEW_CUSTOMER_VALUE} color={colors.accent} />
       </PickerField>
 
       <TextField
-        label="Amount"
+        label={t("common.amount")}
         icon="cash-outline"
         required
         value={amount}
@@ -147,45 +168,45 @@ export default function VoiceConfirm() {
       />
 
       <TextField
-        label="Note (optional)"
+        label={t("common.noteOptional")}
         icon="document-text-outline"
         value={note}
         onChangeText={setNote}
-        placeholder="e.g. rice, oil, soap"
+        placeholder={t("common.itemsPlaceholder")}
         multiline
       />
 
-      <Button label="Confirm & Save" onPress={handleSave} loading={isSaving} style={{ marginTop: 8 }} />
+      <Button label={t("voiceEntry.confirmSaveButton")} onPress={handleSave} loading={isSaving} style={{ marginTop: 8 }} />
 
       <Modal visible={isCreatingCustomer} transparent animationType="fade" onRequestClose={() => setIsCreatingCustomer(false)}>
         <View style={styles.modalOverlay}>
           <Card style={styles.modalCard}>
-            <Text style={styles.modalTitle}>New Customer</Text>
+            <Text style={styles.modalTitle}>{t("voiceEntry.newCustomerModalTitle")}</Text>
             <TextField
-              label="Name"
+              label={t("common.name")}
               icon="person-outline"
               required
               value={newCustomerName}
               onChangeText={setNewCustomerName}
-              placeholder="Customer name"
+              placeholder={t("customers.namePlaceholder")}
             />
             <TextField
-              label="Phone (optional)"
+              label={t("common.phoneOptional")}
               icon="call-outline"
               value={newCustomerPhone}
               onChangeText={setNewCustomerPhone}
-              placeholder="Phone number"
+              placeholder={t("common.phonePlaceholder")}
               keyboardType="phone-pad"
             />
             <View style={styles.modalActions}>
               <Button
-                label="Cancel"
+                label={t("common.cancel")}
                 variant="ghost"
                 onPress={() => setIsCreatingCustomer(false)}
                 style={styles.modalActionButton}
               />
               <Button
-                label="Create Customer"
+                label={t("voiceEntry.createCustomerButton")}
                 onPress={handleCreateCustomer}
                 loading={isSavingCustomer}
                 style={styles.modalActionButton}
@@ -203,15 +224,26 @@ const styles = StyleSheet.create({
   transcriptHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 },
   transcriptLabel: { ...typography.label, color: colors.accent, textTransform: "uppercase" },
   transcript: { ...typography.body, color: colors.textPrimary, fontStyle: "italic" },
+  nativeName: { ...typography.caption, color: colors.textMuted, marginBottom: spacing.md },
   warningCard: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: spacing.sm,
     backgroundColor: colors.warningLight,
     marginBottom: spacing.md,
     borderRadius: radius.md,
+    gap: spacing.sm,
   },
+  warningRow: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm },
   warningText: { ...typography.body, color: colors.warning, flex: 1, lineHeight: 20 },
+  suggestionLabel: { ...typography.label, color: colors.textSecondary, marginBottom: spacing.xs },
+  suggestionRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
+  suggestionChip: {
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    borderRadius: radius.full,
+    paddingVertical: 6,
+    paddingHorizontal: spacing.sm + 4,
+  },
+  suggestionChipText: { ...typography.caption, color: colors.primaryDark, fontWeight: "700" },
   modalOverlay: {
     flex: 1,
     backgroundColor: colors.overlay,

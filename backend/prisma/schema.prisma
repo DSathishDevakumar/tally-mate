@@ -157,6 +157,10 @@ model LedgerEntry {
   // Raw inputs kept for audit/debugging of AI extraction quality.
   rawVoiceText    String?
   sourcePhotoUrl  String?     // Supabase Storage URL of the notebook photo
+  // The customer's name in its original script (e.g. Tamil), when the AI had to
+  // transliterate it into English for `customer.name` — kept so the shop owner can
+  // verify the transliteration against what was actually spoken/written.
+  customerNameNative String?
   aiConfidence    Decimal?    @db.Decimal(4, 3) // 0.000 - 1.000, null for manual entries
   // AI-extracted rows must be reviewed by a human before they count toward
   // balances/bills. Manual entries are confirmed at creation time.

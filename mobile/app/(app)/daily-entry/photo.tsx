@@ -3,11 +3,13 @@ import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { useTranslation } from "react-i18next";
 import { draftPhotoEntries } from "../../../src/lib/api";
 import { LoadingView } from "../../../src/components/LoadingView";
 import { colors, radius, shadowLg, spacing, typography } from "../../../src/theme/theme";
 
 export default function PhotoEntry() {
+  const { t } = useTranslation();
   const router = useRouter();
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -18,8 +20,10 @@ export default function PhotoEntry() {
 
     if (!granted) {
       Alert.alert(
-        "Permission needed",
-        `Please allow ${fromCamera ? "camera" : "photo library"} access to continue.`
+        t("photoEntry.permissionNeededTitle"),
+        t("photoEntry.permissionNeededMessage", {
+          target: fromCamera ? t("photoEntry.cameraTarget") : t("photoEntry.libraryTarget"),
+        })
       );
       return;
     }
@@ -39,7 +43,7 @@ export default function PhotoEntry() {
         params: { rows: JSON.stringify(rows) },
       });
     } catch (err) {
-      Alert.alert("Couldn't process photo", err instanceof Error ? err.message : "Please try again.");
+      Alert.alert(t("photoEntry.processFailedTitle"), err instanceof Error ? err.message : t("common.tryAgain"));
     } finally {
       setIsProcessing(false);
     }
@@ -49,7 +53,7 @@ export default function PhotoEntry() {
     return (
       <View style={styles.container}>
         <LoadingView />
-        <Text style={styles.processingLabel}>Reading the page...</Text>
+        <Text style={styles.processingLabel}>{t("photoEntry.processingLabel")}</Text>
       </View>
     );
   }
@@ -58,10 +62,7 @@ export default function PhotoEntry() {
     <View style={styles.container}>
       <View style={styles.hintCard}>
         <Ionicons name="document-text-outline" size={28} color={colors.primary} style={{ marginBottom: spacing.sm }} />
-        <Text style={styles.hint}>
-          Photograph a page of your credit notebook. Every customer and amount written on it will be found
-          automatically — you'll review and confirm before anything is saved.
-        </Text>
+        <Text style={styles.hint}>{t("photoEntry.hint")}</Text>
       </View>
 
       <Pressable style={styles.actionButton} onPress={() => handlePick(true)}>
@@ -69,8 +70,8 @@ export default function PhotoEntry() {
           <Ionicons name="camera" size={24} color={colors.primary} />
         </View>
         <View style={styles.actionText}>
-          <Text style={styles.actionTitle}>Take Photo</Text>
-          <Text style={styles.actionDescription}>Use the camera right now</Text>
+          <Text style={styles.actionTitle}>{t("photoEntry.takePhotoTitle")}</Text>
+          <Text style={styles.actionDescription}>{t("photoEntry.takePhotoDescription")}</Text>
         </View>
         <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
       </Pressable>
@@ -80,8 +81,8 @@ export default function PhotoEntry() {
           <Ionicons name="images" size={24} color={colors.accent} />
         </View>
         <View style={styles.actionText}>
-          <Text style={styles.actionTitle}>Choose from Gallery</Text>
-          <Text style={styles.actionDescription}>Pick an existing photo</Text>
+          <Text style={styles.actionTitle}>{t("photoEntry.chooseGalleryTitle")}</Text>
+          <Text style={styles.actionDescription}>{t("photoEntry.chooseGalleryDescription")}</Text>
         </View>
         <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
       </Pressable>

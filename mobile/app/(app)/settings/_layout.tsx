@@ -2,7 +2,7 @@ import { Stack } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { colors } from "../../../src/theme/theme";
 
-export default function CustomersLayout() {
+export default function SettingsLayout() {
   const { t } = useTranslation();
   return (
     <Stack
@@ -13,9 +13,7 @@ export default function CustomersLayout() {
         headerTintColor: colors.primary,
       }}
     >
-      <Stack.Screen name="index" options={{ title: t("customers.listTitle") }} />
-      <Stack.Screen name="new" options={{ title: t("customers.addTitle") }} />
-      <Stack.Screen name="[id]" options={{ title: t("customers.detailTitle") }} />
+      <Stack.Screen name="index" options={{ title: t("settings.title") }} />
     </Stack>
   );
 }

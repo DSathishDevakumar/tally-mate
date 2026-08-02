@@ -1,11 +1,7 @@
+import { useTranslation } from "react-i18next";
 import { EmptyState } from "../../../src/components/EmptyState";
 
 export default function Billing() {
-  return (
-    <EmptyState
-      icon="receipt-outline"
-      title="Monthly Billing"
-      description="Auto-compiled monthly bills, PDF generation, and paid/partial/due status — coming soon."
-    />
-  );
+  const { t } = useTranslation();
+  return <EmptyState icon="receipt-outline" title={t("billing.title")} description={t("billing.description")} />;
 }

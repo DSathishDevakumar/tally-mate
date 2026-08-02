@@ -1,7 +1,11 @@
 import { Router } from "express";
-import { requireAuth } from "../middleware/auth";
+import { createPayment, listPayments } from "../controllers/paymentsController";
+import { requireAuth, requireRole } from "../middleware/auth";
+import { asyncHandler } from "../utils/asyncHandler";
 
-// TODO: Payment Tracking module — partial payments, carry-forward balance, payment history.
 export const paymentsRouter = Router();
 
-paymentsRouter.use(requireAuth);
+paymentsRouter.use(requireAuth, requireRole("SHOP_OWNER"));
+
+paymentsRouter.get("/", asyncHandler(listPayments));
+paymentsRouter.post("/", asyncHandler(createPayment));

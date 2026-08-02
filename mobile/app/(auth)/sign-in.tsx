@@ -2,10 +2,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useState } from "react";
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "../../src/context/AuthContext";
 import { colors, radius, shadowLg, spacing, typography } from "../../src/theme/theme";
 
 export default function SignIn() {
+  const { t } = useTranslation();
   const { signInWithGoogle } = useAuth();
   const [isSigningIn, setIsSigningIn] = useState(false);
 
@@ -14,7 +16,7 @@ export default function SignIn() {
     try {
       await signInWithGoogle();
     } catch (err) {
-      Alert.alert("Sign-in failed", err instanceof Error ? err.message : "Please try again.");
+      Alert.alert(t("signIn.failedTitle"), err instanceof Error ? err.message : t("common.tryAgain"));
     } finally {
       setIsSigningIn(false);
     }
@@ -26,14 +28,14 @@ export default function SignIn() {
         <View style={styles.logoCircle}>
           <Ionicons name="storefront" size={40} color={colors.primary} />
         </View>
-        <Text style={styles.title}>Grocery Ledger</Text>
-        <Text style={styles.subtitle}>Track customer credit, the digital way.</Text>
+        <Text style={styles.title}>{t("signIn.title")}</Text>
+        <Text style={styles.subtitle}>{t("signIn.subtitle")}</Text>
       </View>
 
       <View style={styles.card}>
-        <FeatureRow icon="people-outline" label="Manage customer credit accounts" />
-        <FeatureRow icon="mic-outline" label="Log entries by voice or manually" />
-        <FeatureRow icon="receipt-outline" label="Bill customers once a month" />
+        <FeatureRow icon="people-outline" label={t("signIn.feature1")} />
+        <FeatureRow icon="mic-outline" label={t("signIn.feature2")} />
+        <FeatureRow icon="receipt-outline" label={t("signIn.feature3")} />
 
         <Pressable style={styles.googleButton} onPress={handlePress} disabled={isSigningIn}>
           {isSigningIn ? (
@@ -41,7 +43,7 @@ export default function SignIn() {
           ) : (
             <>
               <Ionicons name="logo-google" size={20} color="#EA4335" style={{ marginRight: spacing.sm }} />
-              <Text style={styles.googleButtonText}>Sign in with Google</Text>
+              <Text style={styles.googleButtonText}>{t("signIn.googleButton")}</Text>
             </>
           )}
         </Pressable>

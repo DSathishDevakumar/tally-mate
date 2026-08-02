@@ -54,6 +54,7 @@ export interface LedgerEntry {
   note: string | null;
   rawVoiceText: string | null;
   sourcePhotoUrl: string | null;
+  customerNameNative: string | null;
   aiConfidence: string | null;
   isConfirmed: boolean;
   billId: string | null;
@@ -70,6 +71,7 @@ export interface EntryInput {
   entryDate?: string;
   source?: EntrySource;
   rawVoiceText?: string;
+  customerNameNative?: string;
   aiConfidence?: number;
 }
 
@@ -82,6 +84,7 @@ export interface CustomerMatch {
 export interface VoiceDraft {
   transcript: string;
   extractedCustomerName: string | null;
+  extractedCustomerNameNative: string | null;
   amount: number | null;
   note: string | null;
   confidence: number;
@@ -91,6 +94,7 @@ export interface VoiceDraft {
 
 export interface PhotoDraftRow {
   extractedCustomerName: string | null;
+  extractedCustomerNameNative: string | null;
   amount: number | null;
   note: string | null;
   confidence: number;
@@ -103,6 +107,7 @@ export interface BulkEntryInput {
   amount: number;
   note?: string;
   source?: EntrySource;
+  customerNameNative?: string;
   aiConfidence?: number;
 }
 
@@ -131,6 +136,28 @@ export interface CustomerStatement {
     dateRange: { from: string; to: string } | null;
     unbilledTotal: number;
     outstandingBillTotal: number;
+    unappliedPaymentsTotal: number;
   };
   entries: ReportEntry[];
+}
+
+export interface Payment {
+  id: string;
+  shopId: string;
+  customerId: string;
+  billId: string | null;
+  amount: string;
+  paymentMethod: string;
+  paymentDate: string;
+  notes: string | null;
+  recordedByUserId: string;
+  createdAt: string;
+}
+
+export interface PaymentInput {
+  customerId: string;
+  amount: number;
+  paymentMethod?: string;
+  paymentDate?: string;
+  notes?: string;
 }

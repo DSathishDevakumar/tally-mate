@@ -3,7 +3,9 @@ import { useEffect } from "react";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider, useAuth } from "../src/context/AuthContext";
+import { LanguageProvider } from "../src/context/LanguageContext";
 import { LoadingView } from "../src/components/LoadingView";
+import "../src/i18n";
 
 function RootNavigator() {
   const { session, appUser, isLoading } = useAuth();
@@ -33,10 +35,12 @@ function RootNavigator() {
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
-      <AuthProvider>
-        <StatusBar style="dark" />
-        <RootNavigator />
-      </AuthProvider>
+      <LanguageProvider>
+        <AuthProvider>
+          <StatusBar style="dark" />
+          <RootNavigator />
+        </AuthProvider>
+      </LanguageProvider>
     </SafeAreaProvider>
   );
 }

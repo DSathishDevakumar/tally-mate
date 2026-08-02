@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
-import { useLocalSearchParams } from "expo-router";
+import { useCallback, useState } from "react";
+import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import { Alert, StyleSheet, Switch, Text, View } from "react-native";
+import { useTranslation } from "react-i18next";
 import { getCustomer, updateCustomer } from "../../../src/lib/api";
 import type { Customer } from "../../../src/types";
 import { Avatar } from "../../../src/components/Avatar";
@@ -8,11 +9,13 @@ import { Badge } from "../../../src/components/Badge";
 import { Button } from "../../../src/components/Button";
 import { Card } from "../../../src/components/Card";
 import { LoadingView } from "../../../src/components/LoadingView";
+import { RecordPaymentModal } from "../../../src/components/RecordPaymentModal";
 import { Screen } from "../../../src/components/Screen";
 import { TextField } from "../../../src/components/TextField";
 import { colors, spacing, typography } from "../../../src/theme/theme";
 
 export default function CustomerDetail() {
+  const { t } = useTranslation();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [name, setName] = useState("");
@@ -22,8 +25,9 @@ export default function CustomerDetail() {
   const [notes, setNotes] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isPaymentModalVisible, setIsPaymentModalVisible] = useState(false);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     if (!id) return;
     getCustomer(id).then((c) => {
       setCustomer(c);
@@ -35,6 +39,12 @@ export default function CustomerDetail() {
       setIsActive(c.isActive);
     });
   }, [id]);
+
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load])
+  );
 
   async function handleSave() {
     if (!id || !name.trim()) return;
@@ -49,9 +59,9 @@ export default function CustomerDetail() {
         isActive,
       });
       setCustomer(updated);
-      Alert.alert("Saved", "Customer updated.");
+      Alert.alert(t("common.savedTitle"), t("customers.savedMessage"));
     } catch (err) {
-      Alert.alert("Failed to save", err instanceof Error ? err.message : "Please try again.");
+      Alert.alert(t("common.saveFailedTitle"), err instanceof Error ? err.message : t("common.tryAgain"));
     } finally {
       setIsSaving(false);
     }
@@ -68,28 +78,38 @@ export default function CustomerDetail() {
       <Card style={styles.balanceCard}>
         <Avatar name={customer.name} size={56} />
         <View style={styles.balanceText}>
-          <Text style={styles.balanceLabel}>Running Balance</Text>
+          <Text style={styles.balanceLabel}>{t("customers.runningBalance")}</Text>
           <Text style={[styles.balance, isDue && styles.balanceDue]}>₹{customer.runningBalance.toFixed(2)}</Text>
         </View>
-        <Badge label={isDue ? "Due" : "Settled"} tone={isDue ? "danger" : "success"} />
+        <Badge label={isDue ? t("common.badgeDue") : t("common.badgeSettled")} tone={isDue ? "danger" : "success"} />
       </Card>
 
-      <TextField label="Name" icon="person-outline" required value={name} onChangeText={setName} />
-      <TextField label="Phone" icon="call-outline" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
-      <TextField label="Address" icon="location-outline" value={address} onChangeText={setAddress} />
+      {isDue ? (
+        <Button
+          label={t("payments.recordButton")}
+          icon="cash-outline"
+          variant="secondary"
+          onPress={() => setIsPaymentModalVisible(true)}
+          style={{ marginBottom: spacing.lg }}
+        />
+      ) : null}
+
+      <TextField label={t("common.name")} icon="person-outline" required value={name} onChangeText={setName} />
+      <TextField label={t("common.phone")} icon="call-outline" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
+      <TextField label={t("common.address")} icon="location-outline" value={address} onChangeText={setAddress} />
       <TextField
-        label="Credit Limit"
+        label={t("customers.creditLimit")}
         icon="card-outline"
         value={creditLimit}
         onChangeText={setCreditLimit}
         keyboardType="decimal-pad"
       />
-      <TextField label="Notes" icon="document-text-outline" value={notes} onChangeText={setNotes} multiline />
+      <TextField label={t("common.notes")} icon="document-text-outline" value={notes} onChangeText={setNotes} multiline />
 
       <Card style={styles.switchRow}>
         <View>
-          <Text style={styles.switchLabel}>Active customer</Text>
-          <Text style={styles.switchHint}>Inactive customers won't appear when logging new entries.</Text>
+          <Text style={styles.switchLabel}>{t("customers.activeLabel")}</Text>
+          <Text style={styles.switchHint}>{t("customers.activeHint")}</Text>
         </View>
         <Switch
           value={isActive}
@@ -98,7 +118,19 @@ export default function CustomerDetail() {
         />
       </Card>
 
-      <Button label="Save Changes" onPress={handleSave} loading={isSaving} style={{ marginTop: spacing.md }} />
+      <Button label={t("common.saveChanges")} onPress={handleSave} loading={isSaving} style={{ marginTop: spacing.md }} />
+
+      <RecordPaymentModal
+        visible={isPaymentModalVisible}
+        customerId={customer.id}
+        customerName={customer.name}
+        runningBalance={customer.runningBalance}
+        onClose={() => setIsPaymentModalVisible(false)}
+        onSuccess={(newBalance) => {
+          setIsPaymentModalVisible(false);
+          setCustomer((c) => (c ? { ...c, runningBalance: newBalance } : c));
+        }}
+      />
     </Screen>
   );
 }

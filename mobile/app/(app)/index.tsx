@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useCallback, useState } from "react";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "../../src/context/AuthContext";
 import { listCustomers, listEntries } from "../../src/lib/api";
 import { Avatar } from "../../src/components/Avatar";
@@ -17,6 +18,7 @@ interface Stats {
 }
 
 export default function Home() {
+  const { t } = useTranslation();
   const { appUser, signOut } = useAuth();
   const router = useRouter();
   const [stats, setStats] = useState<Stats | null>(null);
@@ -45,7 +47,7 @@ export default function Home() {
     <Screen scroll>
       <View style={styles.header}>
         <View style={styles.headerText}>
-          <Text style={styles.greeting}>Welcome back,</Text>
+          <Text style={styles.greeting}>{t("home.greeting")}</Text>
           <Text style={styles.name}>{appUser?.name}</Text>
         </View>
         <Avatar name={appUser?.name ?? "?"} size={52} />
@@ -55,44 +57,44 @@ export default function Home() {
         <Card style={styles.statCard}>
           <Ionicons name="today-outline" size={20} color={colors.primary} />
           <Text style={styles.statValue}>₹{(stats?.todayTotal ?? 0).toFixed(0)}</Text>
-          <Text style={styles.statLabel}>{stats?.todayCount ?? 0} entries today</Text>
+          <Text style={styles.statLabel}>{t("home.entriesTodayCount", { count: stats?.todayCount ?? 0 })}</Text>
         </Card>
         <Card style={styles.statCard}>
           <Ionicons name="people-outline" size={20} color={colors.accent} />
           <Text style={styles.statValue}>{stats?.customerCount ?? 0}</Text>
-          <Text style={styles.statLabel}>{stats?.outstandingCount ?? 0} with dues</Text>
+          <Text style={styles.statLabel}>{t("home.withDuesCount", { count: stats?.outstandingCount ?? 0 })}</Text>
         </Card>
       </View>
 
-      <Text style={styles.sectionTitle}>Quick actions</Text>
+      <Text style={styles.sectionTitle}>{t("home.quickActions")}</Text>
       <ActionCard
         icon="mic"
         color={colors.accent}
         bg={colors.accentLight}
-        title="Add entry by voice"
-        description="Speak the customer, amount, and items"
+        title={t("home.actionVoiceTitle")}
+        description={t("home.actionVoiceDescription")}
         onPress={() => router.push("/(app)/daily-entry/voice")}
       />
       <ActionCard
         icon="create-outline"
         color={colors.primary}
         bg={colors.primaryLight}
-        title="Log a manual entry"
-        description="Pick a customer and enter the amount"
+        title={t("home.actionManualTitle")}
+        description={t("home.actionManualDescription")}
         onPress={() => router.push("/(app)/daily-entry/new")}
       />
       <ActionCard
         icon="person-add-outline"
         color={colors.warning}
         bg={colors.warningLight}
-        title="Add a new customer"
-        description="Set up their credit account"
+        title={t("home.actionNewCustomerTitle")}
+        description={t("home.actionNewCustomerDescription")}
         onPress={() => router.push("/(app)/customers/new")}
       />
 
       <Pressable style={styles.signOutButton} onPress={signOut}>
         <Ionicons name="log-out-outline" size={18} color={colors.danger} />
-        <Text style={styles.signOutText}>Sign out</Text>
+        <Text style={styles.signOutText}>{t("home.signOut")}</Text>
       </Pressable>
     </Screen>
   );

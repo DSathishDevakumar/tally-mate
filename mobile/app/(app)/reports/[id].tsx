@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import { FlatList, StyleSheet, Text, View } from "react-native";
+import { useTranslation } from "react-i18next";
 import { getCustomerStatement } from "../../../src/lib/api";
 import type { CustomerStatement } from "../../../src/types";
 import { Avatar } from "../../../src/components/Avatar";
@@ -8,13 +9,15 @@ import { Badge } from "../../../src/components/Badge";
 import { Card } from "../../../src/components/Card";
 import { EmptyState } from "../../../src/components/EmptyState";
 import { LoadingView } from "../../../src/components/LoadingView";
+import { localeTagFor } from "../../../src/i18n";
 import { colors, radius, spacing, typography } from "../../../src/theme/theme";
 
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+function formatDate(iso: string, locale: string) {
+  return new Date(iso).toLocaleDateString(locale, { day: "numeric", month: "short", year: "numeric" });
 }
 
 export default function CustomerStatementScreen() {
+  const { t, i18n } = useTranslation();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [statement, setStatement] = useState<CustomerStatement | null>(null);
 
@@ -40,6 +43,7 @@ export default function CustomerStatementScreen() {
 
   const { customer, summary, entries } = statement;
   const isDue = customer.runningBalance > 0;
+  const locale = localeTagFor(i18n.language);
 
   return (
     <FlatList
@@ -54,40 +58,42 @@ export default function CustomerStatementScreen() {
               <Text style={styles.name}>{customer.name}</Text>
               <Text style={[styles.balance, isDue && styles.balanceDue]}>₹{customer.runningBalance.toFixed(2)}</Text>
             </View>
-            <Badge label={isDue ? "Due" : "Settled"} tone={isDue ? "danger" : "success"} />
+            <Badge label={isDue ? t("common.badgeDue") : t("common.badgeSettled")} tone={isDue ? "danger" : "success"} />
           </Card>
 
           <Card style={styles.statsRow}>
             <View style={styles.stat}>
               <Text style={styles.statValue}>₹{summary.totalCredit.toFixed(0)}</Text>
-              <Text style={styles.statLabel}>Total Credit</Text>
+              <Text style={styles.statLabel}>{t("reports.totalCredit")}</Text>
             </View>
             <View style={styles.stat}>
               <Text style={styles.statValue}>{summary.entryCount}</Text>
-              <Text style={styles.statLabel}>Entries</Text>
+              <Text style={styles.statLabel}>{t("reports.entries")}</Text>
             </View>
             <View style={styles.stat}>
               <Text style={styles.statValue} numberOfLines={1}>
-                {summary.dateRange ? `${formatDate(summary.dateRange.from)} – ${formatDate(summary.dateRange.to)}` : "—"}
+                {summary.dateRange
+                  ? `${formatDate(summary.dateRange.from, locale)} – ${formatDate(summary.dateRange.to, locale)}`
+                  : "—"}
               </Text>
-              <Text style={styles.statLabel}>Date Range</Text>
+              <Text style={styles.statLabel}>{t("reports.dateRange")}</Text>
             </View>
           </Card>
 
-          <Text style={styles.sectionTitle}>Entry History</Text>
+          <Text style={styles.sectionTitle}>{t("reports.entryHistory")}</Text>
         </View>
       }
       ListEmptyComponent={
         <EmptyState
           icon="receipt-outline"
-          title="No entries yet"
-          description={`${customer.name} has no ledger history.`}
+          title={t("reports.noEntriesTitle")}
+          description={t("reports.noEntriesDescription", { name: customer.name })}
         />
       }
       renderItem={({ item }) => (
         <View style={styles.row}>
           <View style={styles.rowMiddle}>
-            <Text style={styles.rowDate}>{formatDate(item.entryDate)}</Text>
+            <Text style={styles.rowDate}>{formatDate(item.entryDate, locale)}</Text>
             {item.note ? (
               <Text style={styles.note} numberOfLines={1}>
                 {item.note}
@@ -96,7 +102,7 @@ export default function CustomerStatementScreen() {
           </View>
           <View style={styles.rowRight}>
             <Text style={styles.amount}>₹{Number(item.totalAmount).toFixed(2)}</Text>
-            {item.billId ? <Badge label="Billed" tone="neutral" /> : null}
+            {item.billId ? <Badge label={t("common.badgeBilled")} tone="neutral" /> : null}
           </View>
         </View>
       )}

@@ -11,7 +11,7 @@ export async function listCustomerReports(req: Request, res: Response) {
     orderBy: { name: "asc" },
   });
 
-  const { unbilledMap, billsMap } = await getShopBalanceMaps(shopId);
+  const { unbilledMap, billsMap, unappliedPaymentsMap } = await getShopBalanceMaps(shopId);
 
   const ranked = customers
     .map((c) => ({
@@ -19,7 +19,12 @@ export async function listCustomerReports(req: Request, res: Response) {
       name: c.name,
       phone: c.phone,
       isActive: c.isActive,
-      runningBalance: runningBalanceOf(c.openingBalance, unbilledMap.get(c.id) ?? 0, billsMap.get(c.id) ?? 0),
+      runningBalance: runningBalanceOf(
+        c.openingBalance,
+        unbilledMap.get(c.id) ?? 0,
+        billsMap.get(c.id) ?? 0,
+        unappliedPaymentsMap.get(c.id) ?? 0
+      ),
     }))
     .sort((a, b) => b.runningBalance - a.runningBalance);
 
@@ -33,7 +38,7 @@ export async function getCustomerStatement(req: Request, res: Response) {
     return res.status(404).json({ error: "Customer not found" });
   }
 
-  const [entries, { unbilledTotal, outstandingBillTotal }] = await Promise.all([
+  const [entries, { unbilledTotal, outstandingBillTotal, unappliedPaymentsTotal }] = await Promise.all([
     prisma.ledgerEntry.findMany({
       where: { customerId: customer.id, shopId },
       orderBy: [{ entryDate: "desc" }, { createdAt: "desc" }],
@@ -56,9 +61,9 @@ export async function getCustomerStatement(req: Request, res: Response) {
       phone: customer.phone,
       isActive: customer.isActive,
       openingBalance: customer.openingBalance,
-      runningBalance: runningBalanceOf(customer.openingBalance, unbilledTotal, outstandingBillTotal),
+      runningBalance: runningBalanceOf(customer.openingBalance, unbilledTotal, outstandingBillTotal, unappliedPaymentsTotal),
     },
-    summary: { totalCredit, entryCount: entries.length, dateRange, unbilledTotal, outstandingBillTotal },
+    summary: { totalCredit, entryCount: entries.length, dateRange, unbilledTotal, outstandingBillTotal, unappliedPaymentsTotal },
     entries,
   });
 }

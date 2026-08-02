@@ -1,7 +1,9 @@
 import { Stack } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { colors } from "../../../src/theme/theme";
 
 export default function ReportsLayout() {
+  const { t } = useTranslation();
   return (
     <Stack
       screenOptions={{
@@ -11,8 +13,8 @@ export default function ReportsLayout() {
         headerTintColor: colors.primary,
       }}
     >
-      <Stack.Screen name="index" options={{ title: "Reports" }} />
-      <Stack.Screen name="[id]" options={{ title: "Statement" }} />
+      <Stack.Screen name="index" options={{ title: t("reports.listTitle") }} />
+      <Stack.Screen name="[id]" options={{ title: t("reports.statementTitle") }} />
     </Stack>
   );
 }

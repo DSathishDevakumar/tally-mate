@@ -34,14 +34,24 @@ interface CustomerNameRow {
   name: string;
 }
 
+// Jaro-Winkler scores run higher than plain edit-distance for genuine near-matches, so the
+// auto-select bar sits higher too; suggestions surface anything plausible below that so a
+// transliteration variant (e.g. "Ramya" vs. Gemini's "Ramiya") is still one tap away instead
+// of requiring a full scroll through every customer.
+const AUTO_MATCH_THRESHOLD = 0.82;
+const SUGGESTION_THRESHOLD = 0.5;
+
 /** Fuzzy-matches an AI-extracted name against a shop's customers for draft review screens. */
 function matchCustomerName(name: string | null, customers: CustomerNameRow[]) {
   const matches = name ? findBestMatches(name, customers, (c) => c.name) : [];
   const [best] = matches;
-  const matchedCustomer = best && best.score >= 0.6 ? { id: best.item.id, name: best.item.name, score: best.score } : null;
+  const matchedCustomer =
+    best && best.score >= AUTO_MATCH_THRESHOLD ? { id: best.item.id, name: best.item.name, score: best.score } : null;
   return {
     matchedCustomer,
-    suggestedCustomers: matches.filter((m) => m.score > 0).map((m) => ({ id: m.item.id, name: m.item.name, score: m.score })),
+    suggestedCustomers: matches
+      .filter((m) => m.score > SUGGESTION_THRESHOLD)
+      .map((m) => ({ id: m.item.id, name: m.item.name, score: m.score })),
   };
 }
 
@@ -68,7 +78,7 @@ export async function listEntries(req: Request, res: Response) {
 
 export async function createEntry(req: Request, res: Response) {
   const shopId = req.appUser!.shopId!;
-  const { customerId, amount, note, entryDate, source, rawVoiceText, aiConfidence } = req.body ?? {};
+  const { customerId, amount, note, entryDate, source, rawVoiceText, customerNameNative, aiConfidence } = req.body ?? {};
 
   if (typeof customerId !== "string" || !customerId) {
     return res.status(400).json({ error: "customerId is required" });
@@ -108,6 +118,7 @@ export async function createEntry(req: Request, res: Response) {
       // isConfirmed is always true regardless of source.
       source: (source as EntrySourceValue | undefined) ?? "MANUAL",
       rawVoiceText: rawVoiceText || null,
+      customerNameNative: customerNameNative || null,
       aiConfidence: aiConfidence !== undefined ? new Prisma.Decimal(aiConfidence) : null,
       isConfirmed: true,
       recordedByUserId: req.appUser!.id,
@@ -165,6 +176,7 @@ export async function createEntriesBulk(req: Request, res: Response) {
           note: e.note || null,
           entryDate: new Date(),
           source: (e.source as EntrySourceValue | undefined) ?? "MANUAL",
+          customerNameNative: e.customerNameNative || null,
           aiConfidence: e.aiConfidence !== undefined ? new Prisma.Decimal(e.aiConfidence) : null,
           isConfirmed: true,
           recordedByUserId: req.appUser!.id,
@@ -203,6 +215,7 @@ export async function draftVoiceEntry(req: Request, res: Response) {
     draft: {
       transcript: extraction.transcript,
       extractedCustomerName: extraction.customerName,
+      extractedCustomerNameNative: extraction.customerNameNative,
       amount: extraction.amount,
       note: extraction.note,
       confidence: extraction.confidence,
@@ -240,6 +253,7 @@ export async function draftPhotoEntries(req: Request, res: Response) {
     const { matchedCustomer, suggestedCustomers } = matchCustomerName(row.customerName, customers);
     return {
       extractedCustomerName: row.customerName,
+      extractedCustomerNameNative: row.customerNameNative,
       amount: row.amount,
       note: row.note,
       confidence: row.confidence,

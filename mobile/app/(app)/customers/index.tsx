@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useCallback, useMemo, useState } from "react";
 import { useFocusEffect, useRouter } from "expo-router";
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from "react-native";
+import { useTranslation } from "react-i18next";
 import { listCustomers } from "../../../src/lib/api";
 import type { Customer } from "../../../src/types";
 import { Avatar } from "../../../src/components/Avatar";
@@ -9,13 +10,16 @@ import { Badge } from "../../../src/components/Badge";
 import { EmptyState } from "../../../src/components/EmptyState";
 import { Fab, FabRow } from "../../../src/components/Fab";
 import { LoadingView } from "../../../src/components/LoadingView";
+import { RecordPaymentModal } from "../../../src/components/RecordPaymentModal";
 import { colors, radius, spacing, typography } from "../../../src/theme/theme";
 
 export default function CustomersList() {
+  const { t } = useTranslation();
   const router = useRouter();
   const [customers, setCustomers] = useState<Customer[] | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [query, setQuery] = useState("");
+  const [paymentCustomer, setPaymentCustomer] = useState<Customer | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -55,7 +59,7 @@ export default function CustomersList() {
         <Ionicons name="search" size={18} color={colors.textMuted} />
         <TextInput
           style={styles.searchInput}
-          placeholder="Search customers..."
+          placeholder={t("customers.searchPlaceholder")}
           placeholderTextColor={colors.textMuted}
           value={query}
           onChangeText={setQuery}
@@ -70,14 +74,17 @@ export default function CustomersList() {
         ListEmptyComponent={
           <EmptyState
             icon="people-outline"
-            title={query ? "No matches" : "No customers yet"}
-            description={query ? "Try a different name or number." : 'Tap "Add Customer" below to add your first one.'}
+            title={query ? t("customers.noMatchesTitle") : t("customers.emptyTitle")}
+            description={query ? t("customers.noMatchesDescription") : t("customers.emptyDescription")}
           />
         }
         renderItem={({ item }) => (
           <Pressable
             style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
             onPress={() => router.push(`/(app)/customers/${item.id}`)}
+            onLongPress={() => {
+              if (item.runningBalance > 0) setPaymentCustomer(item);
+            }}
           >
             <Avatar name={item.name} />
             <View style={styles.rowMiddle}>
@@ -89,11 +96,11 @@ export default function CustomersList() {
                 ₹{item.runningBalance.toFixed(0)}
               </Text>
               {!item.isActive ? (
-                <Badge label="Inactive" tone="neutral" />
+                <Badge label={t("common.badgeInactive")} tone="neutral" />
               ) : item.runningBalance > 0 ? (
-                <Badge label="Due" tone="danger" />
+                <Badge label={t("common.badgeDue")} tone="danger" />
               ) : (
-                <Badge label="Settled" tone="success" />
+                <Badge label={t("common.badgeSettled")} tone="success" />
               )}
             </View>
           </Pressable>
@@ -101,8 +108,23 @@ export default function CustomersList() {
       />
 
       <FabRow>
-        <Fab label="Add Customer" icon="person-add" onPress={() => router.push("/(app)/customers/new")} />
+        <Fab label={t("customers.addButton")} icon="person-add" onPress={() => router.push("/(app)/customers/new")} />
       </FabRow>
+
+      {paymentCustomer ? (
+        <RecordPaymentModal
+          visible
+          customerId={paymentCustomer.id}
+          customerName={paymentCustomer.name}
+          runningBalance={paymentCustomer.runningBalance}
+          onClose={() => setPaymentCustomer(null)}
+          onSuccess={(newBalance) => {
+            const paidId = paymentCustomer.id;
+            setPaymentCustomer(null);
+            setCustomers((prev) => prev?.map((c) => (c.id === paidId ? { ...c, runningBalance: newBalance } : c)) ?? prev);
+          }}
+        />
+      ) : null}
     </View>
   );
 }

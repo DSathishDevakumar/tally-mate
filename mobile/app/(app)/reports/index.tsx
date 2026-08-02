@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import { useFocusEffect, useRouter } from "expo-router";
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
+import { useTranslation } from "react-i18next";
 import { listCustomerReports } from "../../../src/lib/api";
 import type { CustomerReportSummary } from "../../../src/types";
 import { Avatar } from "../../../src/components/Avatar";
@@ -10,6 +11,7 @@ import { LoadingView } from "../../../src/components/LoadingView";
 import { colors, radius, spacing, typography } from "../../../src/theme/theme";
 
 export default function ReportsList() {
+  const { t } = useTranslation();
   const router = useRouter();
   const [customers, setCustomers] = useState<CustomerReportSummary[] | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -48,8 +50,8 @@ export default function ReportsList() {
       ListEmptyComponent={
         <EmptyState
           icon="bar-chart-outline"
-          title="No customers yet"
-          description="Add customers and log entries to see statements here."
+          title={t("reports.emptyTitle")}
+          description={t("reports.emptyDescription")}
         />
       }
       renderItem={({ item }) => (
@@ -67,11 +69,11 @@ export default function ReportsList() {
               ₹{item.runningBalance.toFixed(0)}
             </Text>
             {!item.isActive ? (
-              <Badge label="Inactive" tone="neutral" />
+              <Badge label={t("common.badgeInactive")} tone="neutral" />
             ) : item.runningBalance > 0 ? (
-              <Badge label="Due" tone="danger" />
+              <Badge label={t("common.badgeDue")} tone="danger" />
             ) : (
-              <Badge label="Settled" tone="success" />
+              <Badge label={t("common.badgeSettled")} tone="success" />
             )}
           </View>
         </Pressable>

@@ -1,10 +1,15 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Tabs } from "expo-router";
+import { Tabs, useRouter } from "expo-router";
+import { Pressable } from "react-native";
+import { useTranslation } from "react-i18next";
 import { colors } from "../../src/theme/theme";
 
 // TODO: once role-specific navigation is designed, branch tabs by appUser.role
 // (e.g. CUSTOMER gets a single read-only "My Tab" screen instead of these).
 export default function AppLayout() {
+  const { t } = useTranslation();
+  const router = useRouter();
+
   return (
     <Tabs
       screenOptions={{
@@ -20,14 +25,19 @@ export default function AppLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "Home",
+          title: t("tabs.home"),
           tabBarIcon: ({ color, size }) => <Ionicons name="home" size={size} color={color} />,
+          headerRight: () => (
+            <Pressable onPress={() => router.push("/(app)/settings")} hitSlop={8} style={{ marginRight: 16 }}>
+              <Ionicons name="settings-outline" size={22} color={colors.textPrimary} />
+            </Pressable>
+          ),
         }}
       />
       <Tabs.Screen
         name="customers"
         options={{
-          title: "Customers",
+          title: t("tabs.customers"),
           headerShown: false,
           tabBarIcon: ({ color, size }) => <Ionicons name="people" size={size} color={color} />,
         }}
@@ -35,7 +45,7 @@ export default function AppLayout() {
       <Tabs.Screen
         name="daily-entry"
         options={{
-          title: "Daily Entry",
+          title: t("tabs.dailyEntry"),
           headerShown: false,
           tabBarIcon: ({ color, size }) => <Ionicons name="book" size={size} color={color} />,
         }}
@@ -46,11 +56,13 @@ export default function AppLayout() {
       <Tabs.Screen
         name="reports/index"
         options={{
-          title: "Reports",
+          title: t("tabs.reports"),
           headerShown: false,
           tabBarIcon: ({ color, size }) => <Ionicons name="bar-chart" size={size} color={color} />,
         }}
       />
+      {/* Settings is reached via the gear icon on Home, not a tab of its own. */}
+      <Tabs.Screen name="settings/index" options={{ href: null, headerShown: false }} />
     </Tabs>
   );
 }

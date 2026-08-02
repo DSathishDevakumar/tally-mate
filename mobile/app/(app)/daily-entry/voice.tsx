@@ -9,12 +9,14 @@ import {
   useAudioRecorderState,
 } from "expo-audio";
 import { Alert, Animated, Easing, Pressable, StyleSheet, Text, View } from "react-native";
+import { useTranslation } from "react-i18next";
 import { draftVoiceEntry } from "../../../src/lib/api";
 import { EmptyState } from "../../../src/components/EmptyState";
 import { LoadingView } from "../../../src/components/LoadingView";
 import { colors, radius, shadowLg, spacing, typography } from "../../../src/theme/theme";
 
 export default function VoiceEntry() {
+  const { t } = useTranslation();
   const router = useRouter();
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recorderState = useAudioRecorderState(recorder);
@@ -53,7 +55,7 @@ export default function VoiceEntry() {
     await recorder.stop();
     const uri = recorder.uri;
     if (!uri) {
-      Alert.alert("Recording failed", "No audio was captured. Please try again.");
+      Alert.alert(t("voiceEntry.recordingFailedTitle"), t("voiceEntry.recordingFailedMessage"));
       return;
     }
 
@@ -65,7 +67,7 @@ export default function VoiceEntry() {
         params: { draft: JSON.stringify(draft) },
       });
     } catch (err) {
-      Alert.alert("Couldn't process recording", err instanceof Error ? err.message : "Please try again.");
+      Alert.alert(t("voiceEntry.processFailedTitle"), err instanceof Error ? err.message : t("common.tryAgain"));
     } finally {
       setIsProcessing(false);
     }
@@ -79,8 +81,8 @@ export default function VoiceEntry() {
     return (
       <EmptyState
         icon="mic-off-outline"
-        title="Microphone access needed"
-        description="Enable microphone access in your device settings to add entries by voice."
+        title={t("voiceEntry.micNeededTitle")}
+        description={t("voiceEntry.micNeededDescription")}
       />
     );
   }
@@ -93,10 +95,10 @@ export default function VoiceEntry() {
       <View style={styles.hintCard}>
         <Text style={styles.hint}>
           {isProcessing
-            ? "Processing your recording..."
+            ? t("voiceEntry.processingHint")
             : recorderState.isRecording
-              ? "Recording... describe the customer, amount, and what they bought."
-              : 'Tap the mic and speak, e.g. "Ramesh, 250 rupees, rice and oil"'}
+              ? t("voiceEntry.recordingHint")
+              : t("voiceEntry.idleHint")}
         </Text>
       </View>
 
@@ -119,7 +121,7 @@ export default function VoiceEntry() {
       </View>
 
       <Text style={styles.statusLabel}>
-        {isProcessing ? "" : recorderState.isRecording ? "Tap to stop" : "Tap to start recording"}
+        {isProcessing ? "" : recorderState.isRecording ? t("voiceEntry.tapToStop") : t("voiceEntry.tapToStart")}
       </Text>
     </View>
   );

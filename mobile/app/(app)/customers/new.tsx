@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { useRouter } from "expo-router";
 import { Alert } from "react-native";
+import { useTranslation } from "react-i18next";
 import { createCustomer } from "../../../src/lib/api";
 import { Button } from "../../../src/components/Button";
 import { Screen } from "../../../src/components/Screen";
 import { TextField } from "../../../src/components/TextField";
 
 export default function NewCustomer() {
+  const { t } = useTranslation();
   const router = useRouter();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -18,7 +20,7 @@ export default function NewCustomer() {
 
   async function handleSave() {
     if (!name.trim()) {
-      Alert.alert("Name required", "Please enter the customer's name.");
+      Alert.alert(t("customers.nameRequiredTitle"), t("customers.nameRequiredMessage"));
       return;
     }
 
@@ -34,7 +36,7 @@ export default function NewCustomer() {
       });
       router.back();
     } catch (err) {
-      Alert.alert("Failed to save", err instanceof Error ? err.message : "Please try again.");
+      Alert.alert(t("common.saveFailedTitle"), err instanceof Error ? err.message : t("common.tryAgain"));
     } finally {
       setIsSaving(false);
     }
@@ -42,26 +44,39 @@ export default function NewCustomer() {
 
   return (
     <Screen scroll>
-      <TextField label="Name" icon="person-outline" required value={name} onChangeText={setName} placeholder="Customer name" />
       <TextField
-        label="Phone"
+        label={t("common.name")}
+        icon="person-outline"
+        required
+        value={name}
+        onChangeText={setName}
+        placeholder={t("customers.namePlaceholder")}
+      />
+      <TextField
+        label={t("common.phone")}
         icon="call-outline"
         value={phone}
         onChangeText={setPhone}
-        placeholder="Phone number"
+        placeholder={t("common.phonePlaceholder")}
         keyboardType="phone-pad"
       />
-      <TextField label="Address" icon="location-outline" value={address} onChangeText={setAddress} placeholder="Address" />
       <TextField
-        label="Credit Limit"
+        label={t("common.address")}
+        icon="location-outline"
+        value={address}
+        onChangeText={setAddress}
+        placeholder={t("customers.addressPlaceholder")}
+      />
+      <TextField
+        label={t("customers.creditLimit")}
         icon="card-outline"
         value={creditLimit}
         onChangeText={setCreditLimit}
-        placeholder="No limit"
+        placeholder={t("customers.creditLimitPlaceholder")}
         keyboardType="decimal-pad"
       />
       <TextField
-        label="Opening Balance"
+        label={t("customers.openingBalance")}
         icon="wallet-outline"
         value={openingBalance}
         onChangeText={setOpeningBalance}
@@ -69,15 +84,15 @@ export default function NewCustomer() {
         keyboardType="decimal-pad"
       />
       <TextField
-        label="Notes"
+        label={t("common.notes")}
         icon="document-text-outline"
         value={notes}
         onChangeText={setNotes}
-        placeholder="Optional notes"
+        placeholder={t("customers.notesPlaceholder")}
         multiline
       />
 
-      <Button label="Save Customer" onPress={handleSave} loading={isSaving} style={{ marginTop: 8 }} />
+      <Button label={t("customers.saveButton")} onPress={handleSave} loading={isSaving} style={{ marginTop: 8 }} />
     </Screen>
   );
 }

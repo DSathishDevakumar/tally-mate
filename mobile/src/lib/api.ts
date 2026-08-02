@@ -9,6 +9,8 @@ import type {
   CustomerStatement,
   EntryInput,
   LedgerEntry,
+  Payment,
+  PaymentInput,
   PhotoDraftRow,
   VoiceDraft,
 } from "../types";
@@ -187,4 +189,18 @@ export async function listCustomerReports(): Promise<CustomerReportSummary[]> {
 /** A single customer's full ledger history plus balance/summary totals. */
 export async function getCustomerStatement(id: string): Promise<CustomerStatement> {
   return authedFetch(`/api/reports/customers/${id}`);
+}
+
+/** Payment history for one customer, most recent first. */
+export async function listPayments(customerId: string): Promise<Payment[]> {
+  const { payments } = await authedFetch(`/api/payments?customerId=${encodeURIComponent(customerId)}`);
+  return payments;
+}
+
+/** Records a full or partial payment against a customer's outstanding balance. */
+export async function createPayment(input: PaymentInput): Promise<{ payment: Payment; runningBalance: number }> {
+  return authedFetch("/api/payments", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
 }
