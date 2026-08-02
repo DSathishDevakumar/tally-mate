@@ -234,10 +234,12 @@ zero errors — against placeholder env values, exercising the full route tree
 
 ## Reports — customer statements (`backend/src/services/customerBalance.ts`, `backend/src/controllers/reportsController.ts`, `mobile/app/(app)/reports/`)
 
-- **Scope constraint, by design**: Billing and Payments are still unbuilt stubs
-  (routers exist, no controller logic, tables are empty in any real
-  deployment), so Reports can only meaningfully draw on `Customer` +
-  `LedgerEntry` data today. This module is a **per-customer statement**: pick
+- **Scope constraint, by design**: Billing (`Bill` generation) is still an
+  unbuilt stub, so the outstanding-bill component of `runningBalance` is
+  always zero. Payments now exist (`Payment` rows applied directly against
+  the running balance, since there's no `Bill` to attach them to yet — see
+  `paymentsController.ts`) and are included in the statement below. This
+  module is a **per-customer statement**: pick
   a customer, see their full ledger history (not just today's), a balance
   breakdown, and totals. No charts — the mobile design system has no charting
   library, so this reuses the existing `Card`/`Badge`/list-row components.
@@ -256,13 +258,18 @@ zero errors — against placeholder env values, exercising the full route tree
   picker, because a report specifically wants to surface an inactive customer
   who still owes money) with a lighter `select` than full Customer CRUD,
   ranked descending by `runningBalance`. `GET /api/reports/customers/:id`
-  returns the customer, a `summary` (`totalCredit`, `entryCount`,
-  `dateRange`, plus the two balance components), and every `LedgerEntry` for
-  them, newest-first. `summary.totalCredit`/`entryCount`/`dateRange` are a
-  plain historical sum over *every* entry ever logged, kept deliberately
-  separate from `runningBalance` (which follows the stricter unbilled/bill
-  formula) — the two are numerically identical today since nothing is ever
-  billed yet, but will correctly diverge once Billing ships.
+  returns the customer, a `summary` (`totalCredit`, `totalPaid`,
+  `entryCount`, `dateRange`, plus the balance components), and `entries`: a
+  single chronological timeline merging every `LedgerEntry` *and* `Payment`
+  for them (`type: "PURCHASE" | "PAYMENT"`), newest-first — added after an
+  early version of Payments shipped that updated `runningBalance` correctly
+  but left `entries` as `LedgerEntry`-only, so the statement showed the
+  balance drop after a payment with no line item explaining it.
+  `summary.totalCredit`/`entryCount`/`dateRange` are a plain historical sum
+  over *every* purchase entry ever logged, kept deliberately separate from
+  `runningBalance` (which follows the stricter unbilled/bill/payment
+  formula) — the two will diverge once Billing ships and entries start
+  getting billed.
 - **Mobile**: same nested-stack pattern as Customers/Daily Entry —
   `reports/_layout.tsx` → `index.tsx` (ranked list, modeled on
   `customers/index.tsx`'s row) → `[id].tsx` (statement: balance `Card` +

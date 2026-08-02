@@ -38,10 +38,14 @@ export async function getCustomerStatement(req: Request, res: Response) {
     return res.status(404).json({ error: "Customer not found" });
   }
 
-  const [entries, { unbilledTotal, outstandingBillTotal, unappliedPaymentsTotal }] = await Promise.all([
+  const [entries, payments, { unbilledTotal, outstandingBillTotal, unappliedPaymentsTotal }] = await Promise.all([
     prisma.ledgerEntry.findMany({
       where: { customerId: customer.id, shopId },
       orderBy: [{ entryDate: "desc" }, { createdAt: "desc" }],
+    }),
+    prisma.payment.findMany({
+      where: { customerId: customer.id, shopId },
+      orderBy: { paymentDate: "desc" },
     }),
     getCustomerBalanceComponents(customer.id),
   ]);
@@ -51,8 +55,33 @@ export async function getCustomerStatement(req: Request, res: Response) {
   // once Billing actually rolls entries into bills. They're computed independently on
   // purpose so the statement stays correct once that happens.
   const totalCredit = entries.reduce((sum, e) => sum + Number(e.totalAmount), 0);
+  const totalPaid = payments.reduce((sum, p) => sum + Number(p.amount), 0);
   const dateRange =
     entries.length > 0 ? { from: entries[entries.length - 1]!.entryDate, to: entries[0]!.entryDate } : null;
+
+  // A single chronological timeline of purchases and payments — the running balance
+  // already nets payments out (see customerBalance.ts), but until now nothing
+  // surfaced the payment itself, so the statement showed the balance drop with no
+  // line item explaining it.
+  const timeline = [
+    ...entries.map((e) => ({
+      type: "PURCHASE" as const,
+      id: e.id,
+      date: e.entryDate,
+      amount: e.totalAmount,
+      note: e.note,
+      billId: e.billId,
+    })),
+    ...payments.map((p) => ({
+      type: "PAYMENT" as const,
+      id: p.id,
+      date: p.paymentDate,
+      amount: p.amount,
+      note: p.notes,
+      paymentMethod: p.paymentMethod,
+      billId: p.billId,
+    })),
+  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   res.json({
     customer: {
@@ -63,7 +92,7 @@ export async function getCustomerStatement(req: Request, res: Response) {
       openingBalance: customer.openingBalance,
       runningBalance: runningBalanceOf(customer.openingBalance, unbilledTotal, outstandingBillTotal, unappliedPaymentsTotal),
     },
-    summary: { totalCredit, entryCount: entries.length, dateRange, unbilledTotal, outstandingBillTotal, unappliedPaymentsTotal },
-    entries,
+    summary: { totalCredit, totalPaid, entryCount: entries.length, dateRange, unbilledTotal, outstandingBillTotal, unappliedPaymentsTotal },
+    entries: timeline,
   });
 }

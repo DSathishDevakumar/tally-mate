@@ -168,9 +168,11 @@
     "emptyTitle": "No customers yet",
     "emptyDescription": "Add customers and log entries to see statements here.",
     "totalCredit": "Total Credit",
+    "totalPaid": "Total Paid",
     "entries": "Entries",
     "dateRange": "Date Range",
     "entryHistory": "Entry History",
+    "paymentBadge": "Payment",
     "noEntriesTitle": "No entries yet",
     "noEntriesDescription": "{{name}} has no ledger history."
   },

@@ -168,9 +168,11 @@
     "emptyTitle": "இன்னும் வாடிக்கையாளர்கள் இல்லை",
     "emptyDescription": "அறிக்கைகளைக் காண வாடிக்கையாளர்களைச் சேர்த்து பதிவுகளைச் செய்யவும்.",
     "totalCredit": "மொத்த கடன்",
+    "totalPaid": "செலுத்தியது",
     "entries": "பதிவுகள்",
     "dateRange": "தேதி வரம்பு",
     "entryHistory": "பதிவு வரலாறு",
+    "paymentBadge": "பணம் செலுத்தல்",
     "noEntriesTitle": "இன்னும் பதிவுகள் இல்லை",
     "noEntriesDescription": "{{name}}க்கு கணக்கு வரலாறு இல்லை."
   },

@@ -67,18 +67,20 @@ export default function CustomerStatementScreen() {
               <Text style={styles.statLabel}>{t("reports.totalCredit")}</Text>
             </View>
             <View style={styles.stat}>
+              <Text style={[styles.statValue, styles.statValuePaid]}>₹{summary.totalPaid.toFixed(0)}</Text>
+              <Text style={styles.statLabel}>{t("reports.totalPaid")}</Text>
+            </View>
+            <View style={styles.stat}>
               <Text style={styles.statValue}>{summary.entryCount}</Text>
               <Text style={styles.statLabel}>{t("reports.entries")}</Text>
             </View>
-            <View style={styles.stat}>
-              <Text style={styles.statValue} numberOfLines={1}>
-                {summary.dateRange
-                  ? `${formatDate(summary.dateRange.from, locale)} – ${formatDate(summary.dateRange.to, locale)}`
-                  : "—"}
-              </Text>
-              <Text style={styles.statLabel}>{t("reports.dateRange")}</Text>
-            </View>
           </Card>
+
+          {summary.dateRange ? (
+            <Text style={styles.dateRangeLine}>
+              {t("reports.dateRange")}: {formatDate(summary.dateRange.from, locale)} – {formatDate(summary.dateRange.to, locale)}
+            </Text>
+          ) : null}
 
           <Text style={styles.sectionTitle}>{t("reports.entryHistory")}</Text>
         </View>
@@ -90,22 +92,31 @@ export default function CustomerStatementScreen() {
           description={t("reports.noEntriesDescription", { name: customer.name })}
         />
       }
-      renderItem={({ item }) => (
-        <View style={styles.row}>
-          <View style={styles.rowMiddle}>
-            <Text style={styles.rowDate}>{formatDate(item.entryDate, locale)}</Text>
-            {item.note ? (
-              <Text style={styles.note} numberOfLines={1}>
-                {item.note}
+      renderItem={({ item }) => {
+        const isPayment = item.type === "PAYMENT";
+        const subtitle = item.note ?? (isPayment && item.paymentMethod ? t(`payments.method.${item.paymentMethod}`) : null);
+        return (
+          <View style={styles.row}>
+            <View style={styles.rowMiddle}>
+              <View style={styles.rowTitleLine}>
+                <Text style={styles.rowDate}>{formatDate(item.date, locale)}</Text>
+                {isPayment ? <Badge label={t("reports.paymentBadge")} tone="success" /> : null}
+              </View>
+              {subtitle ? (
+                <Text style={styles.note} numberOfLines={1}>
+                  {subtitle}
+                </Text>
+              ) : null}
+            </View>
+            <View style={styles.rowRight}>
+              <Text style={[styles.amount, isPayment && styles.amountPaid]}>
+                {isPayment ? "− " : ""}₹{Number(item.amount).toFixed(2)}
               </Text>
-            ) : null}
+              {!isPayment && item.billId ? <Badge label={t("common.badgeBilled")} tone="neutral" /> : null}
+            </View>
           </View>
-          <View style={styles.rowRight}>
-            <Text style={styles.amount}>₹{Number(item.totalAmount).toFixed(2)}</Text>
-            {item.billId ? <Badge label={t("common.badgeBilled")} tone="neutral" /> : null}
-          </View>
-        </View>
-      )}
+        );
+      }}
     />
   );
 }
@@ -120,7 +131,9 @@ const styles = StyleSheet.create({
   statsRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.md },
   stat: { flex: 1, alignItems: "center" },
   statValue: { ...typography.bodyStrong, color: colors.textPrimary },
+  statValuePaid: { color: colors.success },
   statLabel: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
+  dateRangeLine: { ...typography.caption, color: colors.textSecondary, marginBottom: spacing.md },
   sectionTitle: { ...typography.heading, color: colors.textPrimary, marginBottom: spacing.sm },
   row: {
     flexDirection: "row",
@@ -132,8 +145,10 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   rowMiddle: { flex: 1 },
+  rowTitleLine: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
   rowDate: { ...typography.bodyStrong, color: colors.textPrimary },
   note: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
   rowRight: { alignItems: "flex-end", gap: 4 },
   amount: { ...typography.bodyStrong, color: colors.danger },
+  amountPaid: { color: colors.success },
 });

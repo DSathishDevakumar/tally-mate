@@ -119,7 +119,15 @@ export interface CustomerReportSummary {
   runningBalance: number;
 }
 
-export type ReportEntry = Omit<LedgerEntry, "customer">;
+export interface StatementItem {
+  type: "PURCHASE" | "PAYMENT";
+  id: string;
+  date: string;
+  amount: string;
+  note: string | null;
+  billId: string | null;
+  paymentMethod?: string;
+}
 
 export interface CustomerStatement {
   customer: {
@@ -132,13 +140,14 @@ export interface CustomerStatement {
   };
   summary: {
     totalCredit: number;
+    totalPaid: number;
     entryCount: number;
     dateRange: { from: string; to: string } | null;
     unbilledTotal: number;
     outstandingBillTotal: number;
     unappliedPaymentsTotal: number;
   };
-  entries: ReportEntry[];
+  entries: StatementItem[];
 }
 
 export interface Payment {
