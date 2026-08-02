@@ -1,20 +1,16 @@
 import { useEffect, useState } from "react";
 import { useLocalSearchParams } from "expo-router";
-import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { Alert, StyleSheet, Switch, Text, View } from "react-native";
 import { getCustomer, updateCustomer } from "../../../src/lib/api";
 import type { Customer } from "../../../src/types";
+import { Avatar } from "../../../src/components/Avatar";
+import { Badge } from "../../../src/components/Badge";
+import { Button } from "../../../src/components/Button";
+import { Card } from "../../../src/components/Card";
+import { LoadingView } from "../../../src/components/LoadingView";
+import { Screen } from "../../../src/components/Screen";
+import { TextField } from "../../../src/components/TextField";
+import { colors, spacing, typography } from "../../../src/theme/theme";
 
 export default function CustomerDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -62,73 +58,58 @@ export default function CustomerDetail() {
   }
 
   if (!customer) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" />
-      </View>
-    );
+    return <LoadingView />;
   }
 
+  const isDue = customer.runningBalance > 0;
+
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.balanceLabel}>Running Balance</Text>
-        <Text style={[styles.balance, customer.runningBalance > 0 && styles.balanceDue]}>
-          ₹{customer.runningBalance.toFixed(2)}
-        </Text>
-
-        <Text style={styles.label}>Name *</Text>
-        <TextInput style={styles.input} value={name} onChangeText={setName} />
-
-        <Text style={styles.label}>Phone</Text>
-        <TextInput style={styles.input} value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
-
-        <Text style={styles.label}>Address</Text>
-        <TextInput style={styles.input} value={address} onChangeText={setAddress} />
-
-        <Text style={styles.label}>Credit Limit</Text>
-        <TextInput style={styles.input} value={creditLimit} onChangeText={setCreditLimit} keyboardType="decimal-pad" />
-
-        <Text style={styles.label}>Notes</Text>
-        <TextInput style={[styles.input, styles.multiline]} value={notes} onChangeText={setNotes} multiline />
-
-        <View style={styles.switchRow}>
-          <Text style={styles.label}>Active</Text>
-          <Switch value={isActive} onValueChange={setIsActive} />
+    <Screen scroll>
+      <Card style={styles.balanceCard}>
+        <Avatar name={customer.name} size={56} />
+        <View style={styles.balanceText}>
+          <Text style={styles.balanceLabel}>Running Balance</Text>
+          <Text style={[styles.balance, isDue && styles.balanceDue]}>₹{customer.runningBalance.toFixed(2)}</Text>
         </View>
+        <Badge label={isDue ? "Due" : "Settled"} tone={isDue ? "danger" : "success"} />
+      </Card>
 
-        <Pressable style={styles.saveButton} onPress={handleSave} disabled={isSaving}>
-          <Text style={styles.saveButtonText}>{isSaving ? "Saving..." : "Save Changes"}</Text>
-        </Pressable>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      <TextField label="Name" icon="person-outline" required value={name} onChangeText={setName} />
+      <TextField label="Phone" icon="call-outline" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
+      <TextField label="Address" icon="location-outline" value={address} onChangeText={setAddress} />
+      <TextField
+        label="Credit Limit"
+        icon="card-outline"
+        value={creditLimit}
+        onChangeText={setCreditLimit}
+        keyboardType="decimal-pad"
+      />
+      <TextField label="Notes" icon="document-text-outline" value={notes} onChangeText={setNotes} multiline />
+
+      <Card style={styles.switchRow}>
+        <View>
+          <Text style={styles.switchLabel}>Active customer</Text>
+          <Text style={styles.switchHint}>Inactive customers won't appear when logging new entries.</Text>
+        </View>
+        <Switch
+          value={isActive}
+          onValueChange={setIsActive}
+          trackColor={{ true: colors.primary, false: colors.border }}
+        />
+      </Card>
+
+      <Button label="Save Changes" onPress={handleSave} loading={isSaving} style={{ marginTop: spacing.md }} />
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 20, gap: 4 },
-  center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  balanceLabel: { fontSize: 14, color: "#666" },
-  balance: { fontSize: 28, fontWeight: "700", color: "#333", marginBottom: 12 },
-  balanceDue: { color: "#c62828" },
-  label: { fontSize: 14, fontWeight: "600", color: "#444", marginTop: 12 },
-  input: {
-    borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 16,
-    marginTop: 4,
-  },
-  multiline: { minHeight: 80, textAlignVertical: "top" },
-  switchRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 16 },
-  saveButton: {
-    backgroundColor: "#1a73e8",
-    paddingVertical: 16,
-    alignItems: "center",
-    borderRadius: 10,
-    marginTop: 24,
-  },
-  saveButtonText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+  balanceCard: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.lg },
+  balanceText: { flex: 1 },
+  balanceLabel: { ...typography.caption, color: colors.textSecondary },
+  balance: { ...typography.title, color: colors.textPrimary },
+  balanceDue: { color: colors.danger },
+  switchRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm },
+  switchLabel: { ...typography.bodyStrong, color: colors.textPrimary },
+  switchHint: { ...typography.caption, color: colors.textSecondary, marginTop: 2, maxWidth: 220 },
 });

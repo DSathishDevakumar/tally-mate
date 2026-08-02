@@ -1,37 +1,20 @@
 import { Prisma } from "@prisma/client";
 import type { Request, Response } from "express";
 import { prisma } from "../config/prisma";
+import { getCustomerBalanceComponents, getShopBalanceMaps, runningBalanceOf } from "../services/customerBalance";
 
 // A customer's running balance isn't a stored column — it's opening balance,
 // plus confirmed entries not yet rolled into a bill, plus whatever's still
 // owed on open bills. Recomputed on read so it's always consistent with
 // entries/bills as those modules come online.
-function withRunningBalance<T extends { openingBalance: Prisma.Decimal }>(
+export function withRunningBalance<T extends { openingBalance: Prisma.Decimal }>(
   customer: T,
   unbilledTotal: number,
   outstandingBillTotal: number
 ) {
   return {
     ...customer,
-    runningBalance: Number(customer.openingBalance) + unbilledTotal + outstandingBillTotal,
-  };
-}
-
-async function getBalanceComponents(customerId: string) {
-  const [unbilled, bills] = await Promise.all([
-    prisma.ledgerEntry.aggregate({
-      where: { customerId, isConfirmed: true, billId: null },
-      _sum: { totalAmount: true },
-    }),
-    prisma.bill.aggregate({
-      where: { customerId, status: { in: ["UNPAID", "PARTIAL"] } },
-      _sum: { totalDue: true, amountPaid: true },
-    }),
-  ]);
-
-  return {
-    unbilledTotal: Number(unbilled._sum.totalAmount ?? 0),
-    outstandingBillTotal: Number(bills._sum.totalDue ?? 0) - Number(bills._sum.amountPaid ?? 0),
+    runningBalance: runningBalanceOf(customer.openingBalance, unbilledTotal, outstandingBillTotal),
   };
 }
 
@@ -58,23 +41,7 @@ export async function listCustomers(req: Request, res: Response) {
     orderBy: { name: "asc" },
   });
 
-  const [unbilledByCustomer, billsByCustomer] = await Promise.all([
-    prisma.ledgerEntry.groupBy({
-      by: ["customerId"],
-      where: { shopId, isConfirmed: true, billId: null },
-      _sum: { totalAmount: true },
-    }),
-    prisma.bill.groupBy({
-      by: ["customerId"],
-      where: { shopId, status: { in: ["UNPAID", "PARTIAL"] } },
-      _sum: { totalDue: true, amountPaid: true },
-    }),
-  ]);
-
-  const unbilledMap = new Map(unbilledByCustomer.map((e) => [e.customerId, Number(e._sum.totalAmount ?? 0)]));
-  const billsMap = new Map(
-    billsByCustomer.map((b) => [b.customerId, Number(b._sum.totalDue ?? 0) - Number(b._sum.amountPaid ?? 0)])
-  );
+  const { unbilledMap, billsMap } = await getShopBalanceMaps(shopId);
 
   const result = customers.map((c) =>
     withRunningBalance(c, unbilledMap.get(c.id) ?? 0, billsMap.get(c.id) ?? 0)
@@ -112,6 +79,34 @@ export async function createCustomer(req: Request, res: Response) {
   res.status(201).json({ customer: withRunningBalance(customer, 0, 0) });
 }
 
+export async function createCustomersBulk(req: Request, res: Response) {
+  const shopId = req.appUser!.shopId!;
+  const { customers } = req.body ?? {};
+
+  if (!Array.isArray(customers) || customers.length === 0) {
+    return res.status(400).json({ error: "customers must be a non-empty array" });
+  }
+  if (customers.length > 50) {
+    return res.status(400).json({ error: "Too many customers in a single batch (max 50)" });
+  }
+
+  for (const [i, c] of customers.entries()) {
+    if (typeof c?.name !== "string" || !c.name.trim()) {
+      return res.status(400).json({ error: `customers[${i}].name is required` });
+    }
+  }
+
+  const created = await prisma.$transaction(
+    customers.map((c: { name: string; phone?: string }) =>
+      prisma.customer.create({
+        data: { shopId, name: c.name.trim(), phone: c.phone || null },
+      })
+    )
+  );
+
+  res.status(201).json({ customers: created.map((c) => withRunningBalance(c, 0, 0)) });
+}
+
 export async function getCustomer(req: Request, res: Response) {
   const shopId = req.appUser!.shopId!;
   const customer = await prisma.customer.findFirst({ where: { id: req.params.id, shopId } });
@@ -119,7 +114,7 @@ export async function getCustomer(req: Request, res: Response) {
     return res.status(404).json({ error: "Customer not found" });
   }
 
-  const { unbilledTotal, outstandingBillTotal } = await getBalanceComponents(customer.id);
+  const { unbilledTotal, outstandingBillTotal } = await getCustomerBalanceComponents(customer.id);
   res.json({ customer: withRunningBalance(customer, unbilledTotal, outstandingBillTotal) });
 }
 
@@ -157,6 +152,6 @@ export async function updateCustomer(req: Request, res: Response) {
     },
   });
 
-  const { unbilledTotal, outstandingBillTotal } = await getBalanceComponents(customer.id);
+  const { unbilledTotal, outstandingBillTotal } = await getCustomerBalanceComponents(customer.id);
   res.json({ customer: withRunningBalance(customer, unbilledTotal, outstandingBillTotal) });
 }

@@ -1,13 +1,21 @@
-import { useCallback, useState } from "react";
+import { Ionicons } from "@expo/vector-icons";
+import { useCallback, useMemo, useState } from "react";
 import { useFocusEffect, useRouter } from "expo-router";
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
+import { FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from "react-native";
 import { listCustomers } from "../../../src/lib/api";
 import type { Customer } from "../../../src/types";
+import { Avatar } from "../../../src/components/Avatar";
+import { Badge } from "../../../src/components/Badge";
+import { EmptyState } from "../../../src/components/EmptyState";
+import { Fab, FabRow } from "../../../src/components/Fab";
+import { LoadingView } from "../../../src/components/LoadingView";
+import { colors, radius, spacing, typography } from "../../../src/theme/theme";
 
 export default function CustomersList() {
   const router = useRouter();
   const [customers, setCustomers] = useState<Customer[] | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [query, setQuery] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -30,75 +38,107 @@ export default function CustomersList() {
     setRefreshing(false);
   }
 
+  const filtered = useMemo(() => {
+    if (!customers) return [];
+    const q = query.trim().toLowerCase();
+    if (!q) return customers;
+    return customers.filter((c) => c.name.toLowerCase().includes(q) || c.phone?.includes(q));
+  }, [customers, query]);
+
   if (customers === null) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" />
-      </View>
-    );
+    return <LoadingView />;
   }
 
   return (
     <View style={styles.container}>
+      <View style={styles.searchWrapper}>
+        <Ionicons name="search" size={18} color={colors.textMuted} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search customers..."
+          placeholderTextColor={colors.textMuted}
+          value={query}
+          onChangeText={setQuery}
+        />
+      </View>
+
       <FlatList
-        data={customers}
+        data={filtered}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={customers.length === 0 ? styles.emptyList : undefined}
+        contentContainerStyle={filtered.length === 0 ? styles.emptyList : styles.list}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         ListEmptyComponent={
-          <View style={styles.center}>
-            <Text style={styles.emptyText}>No customers yet. Tap "+ Add Customer" below to add your first one.</Text>
-          </View>
+          <EmptyState
+            icon="people-outline"
+            title={query ? "No matches" : "No customers yet"}
+            description={query ? "Try a different name or number." : 'Tap "Add Customer" below to add your first one.'}
+          />
         }
         renderItem={({ item }) => (
-          <Pressable style={styles.row} onPress={() => router.push(`/(app)/customers/${item.id}`)}>
-            <View style={styles.rowLeft}>
+          <Pressable
+            style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+            onPress={() => router.push(`/(app)/customers/${item.id}`)}
+          >
+            <Avatar name={item.name} />
+            <View style={styles.rowMiddle}>
               <Text style={styles.name}>{item.name}</Text>
               {item.phone ? <Text style={styles.phone}>{item.phone}</Text> : null}
             </View>
             <View style={styles.rowRight}>
               <Text style={[styles.balance, item.runningBalance > 0 && styles.balanceDue]}>
-                ₹{item.runningBalance.toFixed(2)}
+                ₹{item.runningBalance.toFixed(0)}
               </Text>
-              {!item.isActive ? <Text style={styles.inactiveBadge}>Inactive</Text> : null}
+              {!item.isActive ? (
+                <Badge label="Inactive" tone="neutral" />
+              ) : item.runningBalance > 0 ? (
+                <Badge label="Due" tone="danger" />
+              ) : (
+                <Badge label="Settled" tone="success" />
+              )}
             </View>
           </Pressable>
         )}
       />
-      <Pressable style={styles.addButton} onPress={() => router.push("/(app)/customers/new")}>
-        <Text style={styles.addButtonText}>+ Add Customer</Text>
-      </Pressable>
+
+      <FabRow>
+        <Fab label="Add Customer" icon="person-add" onPress={() => router.push("/(app)/customers/new")} />
+      </FabRow>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  center: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
+  container: { flex: 1, backgroundColor: colors.background },
+  searchWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    backgroundColor: colors.surface,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+  },
+  searchInput: { flex: 1, paddingVertical: 10, fontSize: 15, color: colors.textPrimary },
+  list: { paddingHorizontal: spacing.md, paddingBottom: 96 },
   emptyList: { flexGrow: 1 },
-  emptyText: { fontSize: 16, color: "#666", textAlign: "center" },
   row: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#ddd",
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.sm + 4,
+    marginBottom: spacing.sm,
+    gap: spacing.sm,
   },
-  rowLeft: { flex: 1 },
-  name: { fontSize: 17, fontWeight: "600" },
-  phone: { fontSize: 14, color: "#666", marginTop: 2 },
-  rowRight: { alignItems: "flex-end" },
-  balance: { fontSize: 16, fontWeight: "600", color: "#333" },
-  balanceDue: { color: "#c62828" },
-  inactiveBadge: { fontSize: 12, color: "#999", marginTop: 2 },
-  addButton: {
-    backgroundColor: "#1a73e8",
-    paddingVertical: 16,
-    alignItems: "center",
-    margin: 16,
-    borderRadius: 10,
-  },
-  addButtonText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+  rowPressed: { opacity: 0.7 },
+  rowMiddle: { flex: 1 },
+  name: { ...typography.bodyStrong, color: colors.textPrimary },
+  phone: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
+  rowRight: { alignItems: "flex-end", gap: 4 },
+  balance: { ...typography.bodyStrong, color: colors.textPrimary },
+  balanceDue: { color: colors.danger },
 });

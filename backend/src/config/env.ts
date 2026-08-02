@@ -15,4 +15,6 @@ export const env = {
   supabaseUrl: required("SUPABASE_URL"),
   supabaseAnonKey: required("SUPABASE_ANON_KEY"),
   supabaseServiceRoleKey: required("SUPABASE_SERVICE_ROLE_KEY"),
+  geminiApiKey: required("GEMINI_API_KEY"),
+  geminiModel: process.env.GEMINI_MODEL ?? "gemini-3.6-flash",
 };

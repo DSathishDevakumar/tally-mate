@@ -1,7 +1,7 @@
 import { Stack } from "expo-router";
 import { colors } from "../../../src/theme/theme";
 
-export default function CustomersLayout() {
+export default function ReportsLayout() {
   return (
     <Stack
       screenOptions={{
@@ -11,9 +11,8 @@ export default function CustomersLayout() {
         headerTintColor: colors.primary,
       }}
     >
-      <Stack.Screen name="index" options={{ title: "Customers" }} />
-      <Stack.Screen name="new" options={{ title: "Add Customer" }} />
-      <Stack.Screen name="[id]" options={{ title: "Customer" }} />
+      <Stack.Screen name="index" options={{ title: "Reports" }} />
+      <Stack.Screen name="[id]" options={{ title: "Statement" }} />
     </Stack>
   );
 }

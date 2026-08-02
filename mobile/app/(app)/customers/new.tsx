@@ -1,16 +1,10 @@
 import { useState } from "react";
 import { useRouter } from "expo-router";
-import {
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-} from "react-native";
+import { Alert } from "react-native";
 import { createCustomer } from "../../../src/lib/api";
+import { Button } from "../../../src/components/Button";
+import { Screen } from "../../../src/components/Screen";
+import { TextField } from "../../../src/components/TextField";
 
 export default function NewCustomer() {
   const router = useRouter();
@@ -47,77 +41,43 @@ export default function NewCustomer() {
   }
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.label}>Name *</Text>
-        <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Customer name" />
+    <Screen scroll>
+      <TextField label="Name" icon="person-outline" required value={name} onChangeText={setName} placeholder="Customer name" />
+      <TextField
+        label="Phone"
+        icon="call-outline"
+        value={phone}
+        onChangeText={setPhone}
+        placeholder="Phone number"
+        keyboardType="phone-pad"
+      />
+      <TextField label="Address" icon="location-outline" value={address} onChangeText={setAddress} placeholder="Address" />
+      <TextField
+        label="Credit Limit"
+        icon="card-outline"
+        value={creditLimit}
+        onChangeText={setCreditLimit}
+        placeholder="No limit"
+        keyboardType="decimal-pad"
+      />
+      <TextField
+        label="Opening Balance"
+        icon="wallet-outline"
+        value={openingBalance}
+        onChangeText={setOpeningBalance}
+        placeholder="0"
+        keyboardType="decimal-pad"
+      />
+      <TextField
+        label="Notes"
+        icon="document-text-outline"
+        value={notes}
+        onChangeText={setNotes}
+        placeholder="Optional notes"
+        multiline
+      />
 
-        <Text style={styles.label}>Phone</Text>
-        <TextInput
-          style={styles.input}
-          value={phone}
-          onChangeText={setPhone}
-          placeholder="Phone number"
-          keyboardType="phone-pad"
-        />
-
-        <Text style={styles.label}>Address</Text>
-        <TextInput style={styles.input} value={address} onChangeText={setAddress} placeholder="Address" />
-
-        <Text style={styles.label}>Credit Limit</Text>
-        <TextInput
-          style={styles.input}
-          value={creditLimit}
-          onChangeText={setCreditLimit}
-          placeholder="No limit"
-          keyboardType="decimal-pad"
-        />
-
-        <Text style={styles.label}>Opening Balance</Text>
-        <TextInput
-          style={styles.input}
-          value={openingBalance}
-          onChangeText={setOpeningBalance}
-          placeholder="0"
-          keyboardType="decimal-pad"
-        />
-
-        <Text style={styles.label}>Notes</Text>
-        <TextInput
-          style={[styles.input, styles.multiline]}
-          value={notes}
-          onChangeText={setNotes}
-          placeholder="Optional notes"
-          multiline
-        />
-
-        <Pressable style={styles.saveButton} onPress={handleSave} disabled={isSaving}>
-          <Text style={styles.saveButtonText}>{isSaving ? "Saving..." : "Save Customer"}</Text>
-        </Pressable>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      <Button label="Save Customer" onPress={handleSave} loading={isSaving} style={{ marginTop: 8 }} />
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { padding: 20, gap: 4 },
-  label: { fontSize: 14, fontWeight: "600", color: "#444", marginTop: 12 },
-  input: {
-    borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 16,
-    marginTop: 4,
-  },
-  multiline: { minHeight: 80, textAlignVertical: "top" },
-  saveButton: {
-    backgroundColor: "#1a73e8",
-    paddingVertical: 16,
-    alignItems: "center",
-    borderRadius: 10,
-    marginTop: 24,
-  },
-  saveButtonText: { color: "#fff", fontSize: 16, fontWeight: "700" },
-});

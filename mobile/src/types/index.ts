@@ -68,4 +68,69 @@ export interface EntryInput {
   amount: number;
   note?: string;
   entryDate?: string;
+  source?: EntrySource;
+  rawVoiceText?: string;
+  aiConfidence?: number;
+}
+
+export interface CustomerMatch {
+  id: string;
+  name: string;
+  score: number;
+}
+
+export interface VoiceDraft {
+  transcript: string;
+  extractedCustomerName: string | null;
+  amount: number | null;
+  note: string | null;
+  confidence: number;
+  matchedCustomer: CustomerMatch | null;
+  suggestedCustomers: CustomerMatch[];
+}
+
+export interface PhotoDraftRow {
+  extractedCustomerName: string | null;
+  amount: number | null;
+  note: string | null;
+  confidence: number;
+  matchedCustomer: CustomerMatch | null;
+  suggestedCustomers: CustomerMatch[];
+}
+
+export interface BulkEntryInput {
+  customerId: string;
+  amount: number;
+  note?: string;
+  source?: EntrySource;
+  aiConfidence?: number;
+}
+
+export interface CustomerReportSummary {
+  id: string;
+  name: string;
+  phone: string | null;
+  isActive: boolean;
+  runningBalance: number;
+}
+
+export type ReportEntry = Omit<LedgerEntry, "customer">;
+
+export interface CustomerStatement {
+  customer: {
+    id: string;
+    name: string;
+    phone: string | null;
+    isActive: boolean;
+    openingBalance: string;
+    runningBalance: number;
+  };
+  summary: {
+    totalCredit: number;
+    entryCount: number;
+    dateRange: { from: string; to: string } | null;
+    unbilledTotal: number;
+    outstandingBillTotal: number;
+  };
+  entries: ReportEntry[];
 }

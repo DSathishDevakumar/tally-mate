@@ -1,19 +1,16 @@
 import { useEffect, useState } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { Alert, StyleSheet, Text, View } from "react-native";
 import { deleteEntry, listEntries, updateEntry } from "../../../src/lib/api";
 import type { LedgerEntry } from "../../../src/types";
+import { Avatar } from "../../../src/components/Avatar";
+import { Badge } from "../../../src/components/Badge";
+import { Button } from "../../../src/components/Button";
+import { Card } from "../../../src/components/Card";
+import { LoadingView } from "../../../src/components/LoadingView";
+import { Screen } from "../../../src/components/Screen";
+import { TextField } from "../../../src/components/TextField";
+import { colors, spacing, typography } from "../../../src/theme/theme";
 
 export default function EntryDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -78,76 +75,42 @@ export default function EntryDetail() {
   }
 
   if (!entry) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" />
-      </View>
-    );
-  }
-
-  if (entry.billId) {
-    return (
-      <View style={styles.center}>
-        <Text style={styles.name}>{entry.customer.name}</Text>
-        <Text style={styles.amount}>₹{Number(entry.totalAmount).toFixed(2)}</Text>
-        <Text style={styles.billedNotice}>This entry has already been billed and can't be changed.</Text>
-      </View>
-    );
+    return <LoadingView />;
   }
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.name}>{entry.customer.name}</Text>
+    <Screen scroll>
+      <Card style={styles.headerCard}>
+        <Avatar name={entry.customer.name} size={56} />
+        <View style={styles.headerText}>
+          <Text style={styles.name}>{entry.customer.name}</Text>
+          <Text style={styles.amount}>₹{Number(entry.totalAmount).toFixed(2)}</Text>
+        </View>
+        {entry.billId ? <Badge label="Billed" tone="neutral" /> : null}
+      </Card>
 
-        <Text style={styles.label}>Amount *</Text>
-        <TextInput style={styles.input} value={amount} onChangeText={setAmount} keyboardType="decimal-pad" />
+      {entry.billId ? (
+        <Card style={styles.notice}>
+          <Text style={styles.noticeText}>This entry has already been billed and can't be changed.</Text>
+        </Card>
+      ) : (
+        <>
+          <TextField label="Amount" icon="cash-outline" required value={amount} onChangeText={setAmount} keyboardType="decimal-pad" />
+          <TextField label="Note" icon="document-text-outline" value={note} onChangeText={setNote} multiline />
 
-        <Text style={styles.label}>Note</Text>
-        <TextInput style={[styles.input, styles.multiline]} value={note} onChangeText={setNote} multiline />
-
-        <Pressable style={styles.saveButton} onPress={handleSave} disabled={isSaving}>
-          <Text style={styles.saveButtonText}>{isSaving ? "Saving..." : "Save Changes"}</Text>
-        </Pressable>
-
-        <Pressable style={styles.deleteButton} onPress={handleDelete}>
-          <Text style={styles.deleteButtonText}>Delete Entry</Text>
-        </Pressable>
-      </ScrollView>
-    </KeyboardAvoidingView>
+          <Button label="Save Changes" onPress={handleSave} loading={isSaving} style={{ marginTop: spacing.sm }} />
+          <Button label="Delete Entry" variant="ghost" onPress={handleDelete} style={{ marginTop: spacing.xs }} />
+        </>
+      )}
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 20, gap: 4 },
-  center: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, gap: 8 },
-  name: { fontSize: 20, fontWeight: "700", marginBottom: 8 },
-  amount: { fontSize: 24, fontWeight: "700", color: "#c62828" },
-  billedNotice: { fontSize: 14, color: "#666", textAlign: "center", marginTop: 8 },
-  label: { fontSize: 14, fontWeight: "600", color: "#444", marginTop: 12 },
-  input: {
-    borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 16,
-    marginTop: 4,
-  },
-  multiline: { minHeight: 80, textAlignVertical: "top" },
-  saveButton: {
-    backgroundColor: "#1a73e8",
-    paddingVertical: 16,
-    alignItems: "center",
-    borderRadius: 10,
-    marginTop: 24,
-  },
-  saveButtonText: { color: "#fff", fontSize: 16, fontWeight: "700" },
-  deleteButton: {
-    paddingVertical: 16,
-    alignItems: "center",
-    borderRadius: 10,
-    marginTop: 12,
-  },
-  deleteButtonText: { color: "#c62828", fontSize: 15, fontWeight: "600" },
+  headerCard: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.lg },
+  headerText: { flex: 1 },
+  name: { ...typography.heading, color: colors.textPrimary },
+  amount: { ...typography.title, color: colors.danger, marginTop: 2 },
+  notice: { backgroundColor: colors.warningLight },
+  noticeText: { ...typography.body, color: colors.warning, textAlign: "center" },
 });

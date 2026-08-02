@@ -7,10 +7,9 @@ the "what happened and why" companion to it.
 ## Overview
 
 The app digitizes a kirana/grocery shop's monthly credit-notebook workflow. Phase 1
-(schema + scaffolding + Google Sign-In) is done. Since then, two feature modules have
-shipped: **Customer Management** and **Daily Entry (manual)**. Next up is
-**Voice-to-data**, which is being handed off to a fresh conversation — see
-"Handoff: Voice-to-data" at the bottom of this file for exactly what that needs.
+(schema + scaffolding + Google Sign-In) is done. Since then, feature modules have
+shipped: **Customer Management**, **Daily Entry (manual)**,
+**Daily Entry (voice-to-data)**, and **Reports (customer statements)**.
 
 ## Database schema (`backend/prisma/schema.prisma`)
 
@@ -150,6 +149,140 @@ zero errors — against placeholder env values, exercising the full route tree
   itself is v4 — caused `req.params.id` to type as `string | string[]`.
   Pinned to `^4.17.21` to match the runtime version.
 
+## Daily Entry — voice-to-data (`backend/src/services/geminiService.ts`, `backend/src/utils/fuzzyMatch.ts`, `mobile/app/(app)/daily-entry/voice*.tsx`)
+
+- **Audio goes straight to Gemini — no on-device speech-to-text library.** The
+  original handoff plan assumed an on-device STT library producing a
+  transcript, but no Expo-Go-compatible STT library exists — the real ones
+  (`@react-native-voice/voice`, etc.) need a custom dev client / EAS build,
+  which would have broken this app's deliberate "plain Expo Go, no dev client"
+  setup (see the OAuth decision above). Gemini accepts audio directly and can
+  transcribe *and* extract structured data in one multimodal call, so that's
+  what this does instead — confirmed via Expo's own SDK v57 docs that
+  `expo-audio` recording works in plain Expo Go.
+- **Backend**: `POST /api/entries/voice` (multipart, field `audio`, ≤15MB,
+  gated by a `fileFilter` to `audio/*`) reads the uploaded buffer with
+  `multer.memoryStorage()`, sends it inline (base64) to Gemini via
+  `@google/genai`'s `models.generateContent` with `responseMimeType:
+  "application/json"` + a `responseSchema` forcing `{transcript,
+  customerName, amount, note, confidence}`, then fuzzy-matches `customerName`
+  against the shop's active customers using a small hand-rolled
+  normalized-Levenshtein scorer (`fuzzyMatch.ts` — no dependency needed for
+  this). **It never writes to `LedgerEntry`** — the response is just a
+  `draft` object with the transcript, extraction, best-match customer (if
+  score ≥ 0.6), and top suggested matches for the human to review.
+  `GEMINI_MODEL` is an env var (default `gemini-3.6-flash`) specifically so
+  the model name can be swapped without a code change if needed.
+- **`createEntry` (the existing manual-entry endpoint) was extended**, not
+  duplicated: it now accepts optional `source` / `rawVoiceText` /
+  `aiConfidence` fields. There is deliberately no separate "confirm" endpoint
+  — the human pressing "Confirm & Save" on the mobile draft screen *is* the
+  confirmation, and it calls the same `POST /api/entries` the manual flow
+  uses, just tagged `source: "VOICE"` with the transcript/confidence
+  preserved for audit. `isConfirmed` is hardcoded `true` in this handler
+  regardless of source, since by the time this endpoint is called a human
+  has already reviewed the data — that's the whole point of the draft/confirm
+  split enforced by the AI-extraction schema fields.
+- **Mobile**: `daily-entry/voice.tsx` records with `expo-audio`'s
+  `useAudioRecorder(RecordingPresets.HIGH_QUALITY)` (produces `.m4a` on both
+  platforms), uploads the file via `draftVoiceEntry()` in `src/lib/api.ts`
+  (see the `expo-file-system` `File.upload()` note below — not `fetch` +
+  `FormData`), then `router.replace`s into `daily-entry/voice-confirm.tsx`
+  with the draft serialized as a route param. That screen reuses the same
+  customer-picker/amount/note fields as manual `new.tsx`, pre-filled from the
+  draft, shows the transcript and a low-confidence-match warning when the
+  customer couldn't be matched, and only calls `createEntry` (with
+  `source: "VOICE"`) once the shopkeeper taps "Confirm & Save."
+- **Inline customer creation**: the customer `PickerField` in
+  `voice-confirm.tsx` has a trailing "+ Create new customer..." option
+  (sentinel value, handled in `handleCustomerPickerChange` rather than ever
+  being set as the real `customerId`). Picking it opens a small `Modal` —
+  name (pre-filled from `draft.extractedCustomerName`) + optional phone —
+  and calls the existing `createCustomer` API, so a shopkeeper recording an
+  entry for a brand-new customer never has to leave the voice flow to add
+  them first. No backend changes needed for this; it's the same
+  `POST /api/customers` the manual Customers flow already uses.
+- **Fixed on real-device testing**: the initial upload implementation used
+  the classic React Native `formData.append("audio", { uri, name, type })`
+  file-object trick — it typechecked and bundled fine, but failed on an
+  actual device with `Unsupported FormDataPart implementation` (RN 0.86's
+  networking layer no longer recognizes that shape). Replaced with
+  `expo-file-system`'s `new File(uri).upload(url, { uploadType:
+  UploadType.MULTIPART, fieldName: "audio", ... })` — a native multipart
+  upload built for exactly this, which sidesteps the FormData polyfill
+  entirely. Lesson: bundling/typechecking cleanly doesn't catch native
+  networking behavior — this class of bug only surfaces on-device.
+- **Verified**: both projects typecheck clean; `expo export --platform web`
+  bundled cleanly (905 modules, zero errors) with the new screens and
+  `expo-audio` in the tree; backend boots and serves `/health` with the new
+  required `GEMINI_API_KEY` env var wired through `env.ts`. Full round-trip
+  smoke test against the real Gemini API and database passed: synthesized a
+  real speech WAV ("Ramesh Kumar, two hundred fifty rupees, rice and oil" via
+  Windows SAPI TTS, since there's no physical device in this environment) →
+  uploaded to `/api/entries/voice` → Gemini transcribed it correctly and
+  extracted `{amount: 250, note: "rice and oil", confidence: 1}` → fuzzy-match
+  picked the right customer (score 1.0) while still surfacing a plausible
+  second suggestion → confirmed no `LedgerEntry` was written at the draft
+  stage → called `createEntry` with `source: "VOICE"` → entry persisted with
+  `rawVoiceText`/`aiConfidence` set and the customer's running balance updated
+  correctly → cleaned up (deleted the entry via the API, the temp customer
+  directly since no customer-delete route exists yet). **On-device UI**:
+  first real-device attempt hit the FormData bug above (now fixed, see
+  above) before recording could reach the backend at all — the fix hasn't
+  been re-verified on-device yet, so the actual `voice.tsx` recording flow
+  is still not confirmed working end to end on a phone.
+
+## Reports — customer statements (`backend/src/services/customerBalance.ts`, `backend/src/controllers/reportsController.ts`, `mobile/app/(app)/reports/`)
+
+- **Scope constraint, by design**: Billing and Payments are still unbuilt stubs
+  (routers exist, no controller logic, tables are empty in any real
+  deployment), so Reports can only meaningfully draw on `Customer` +
+  `LedgerEntry` data today. This module is a **per-customer statement**: pick
+  a customer, see their full ledger history (not just today's), a balance
+  breakdown, and totals. No charts — the mobile design system has no charting
+  library, so this reuses the existing `Card`/`Badge`/list-row components.
+  No date-range filtering yet either (all-time history) — small shop, small
+  data volume; flagged as a natural future enhancement rather than built now.
+- **Extracted balance math into `services/customerBalance.ts`** rather than
+  duplicating it: `customersController.ts`'s private `getBalanceComponents`
+  (single-customer) and its inline `groupBy` pair (shop-wide list) are now
+  `getCustomerBalanceComponents` / `getShopBalanceMaps` / `runningBalanceOf`,
+  imported by both `customersController.ts` (unchanged behavior) and the new
+  `reportsController.ts`. Same formula as always: `openingBalance` + confirmed
+  unbilled `LedgerEntry` total + outstanding `Bill` total (the bill half is
+  currently always zero, for the same reason noted above).
+- **Backend**: `GET /api/reports/customers` returns every customer (active
+  *and* inactive — deliberately not filtered, unlike the Daily Entry customer
+  picker, because a report specifically wants to surface an inactive customer
+  who still owes money) with a lighter `select` than full Customer CRUD,
+  ranked descending by `runningBalance`. `GET /api/reports/customers/:id`
+  returns the customer, a `summary` (`totalCredit`, `entryCount`,
+  `dateRange`, plus the two balance components), and every `LedgerEntry` for
+  them, newest-first. `summary.totalCredit`/`entryCount`/`dateRange` are a
+  plain historical sum over *every* entry ever logged, kept deliberately
+  separate from `runningBalance` (which follows the stricter unbilled/bill
+  formula) — the two are numerically identical today since nothing is ever
+  billed yet, but will correctly diverge once Billing ships.
+- **Mobile**: same nested-stack pattern as Customers/Daily Entry —
+  `reports/_layout.tsx` → `index.tsx` (ranked list, modeled on
+  `customers/index.tsx`'s row) → `[id].tsx` (statement: balance `Card` +
+  stats `Card` + `FlatList` of entries, modeled on `customers/[id].tsx` and
+  `daily-entry/index.tsx`'s row style). Replaces the old `EmptyState`
+  placeholder; `app/(app)/_layout.tsx` now sets `headerShown: false` on the
+  Reports tab so the nested Stack owns its own header, matching every other
+  tab.
+- **Verified**: both projects typecheck clean; `expo export --platform web`
+  bundles clean. Full round-trip smoke test against the real database
+  passed: created a customer with a nonzero opening balance, logged three
+  dated entries (spanning Jul 20 – Aug 1) via the real `POST /api/entries`,
+  confirmed the ranked list surfaces the right `runningBalance` and sorts
+  descending, confirmed the statement's `totalCredit`/`entryCount`/
+  `dateRange`/entry order all match, confirmed a zero-entry customer returns
+  `entryCount: 0`/`dateRange: null`/`entries: []`, confirmed a bogus customer
+  id 404s and a missing bearer token 401s — cleaned up afterward (deleted the
+  entries via the API, the two test customers directly via Prisma, same
+  convention as prior modules).
+
 ## Key architecture decisions
 
 - **Monorepo, single repo** — one dev (for now), so a single repo with
@@ -177,10 +310,12 @@ zero errors — against placeholder env values, exercising the full route tree
 
 ## Not built yet
 
-Daily Entry (voice-to-data / photo-to-data), Product Catalog, Monthly Billing &
-Settlement, Payment Tracking, Reminders & Notifications, Reports & Analytics,
-Customer Self-View, offline-first SQLite sync, and push notifications. These
-come one module at a time per the brief.
+Daily Entry (photo-to-data), Product Catalog, Monthly Billing & Settlement,
+Payment Tracking, Reminders & Notifications, Customer Self-View,
+offline-first SQLite sync, and push notifications. These come one module at a
+time per the brief. (Reports today only covers per-customer statements — see
+above; shop-wide/period reports and anything Bill/Payment-shaped are blocked
+on Billing/Payments actually shipping.)
 
 ## Verified / smoke-tested
 
@@ -199,32 +334,28 @@ come one module at a time per the brief.
   session token through `supabaseAdmin.auth.admin.generateLink` +
   `verifyOtp`, since there's no password-based test login) and deleted
   afterward — not committed to the repo.
+- Daily Entry (voice-to-data): both projects typecheck clean; mobile bundles
+  clean via `expo export --platform web`; full round-trip smoke test against
+  the real Gemini API and database passed (see module section above for
+  details) — real `GEMINI_API_KEY` confirmed working, extraction + fuzzy
+  match + confirm-gate + balance update all verified. **Not yet tested**: the
+  on-device `expo-audio` recording UI itself (`voice.tsx`), since that can't
+  be driven from a backend script.
+- Reports (customer statements): both projects typecheck clean; mobile
+  bundles clean; full round-trip smoke test against the real database passed
+  (ranked list, statement totals/date-range/entry-order, zero-entry customer,
+  404, 401 — see module section above for the exact scenarios and cleanup).
 
-## Handoff: Voice-to-data
+## Next up
 
-Starting a fresh conversation for this on purpose — Gemini prompt-engineering
-deserves focused iteration separate from scaffolding work, and it needs a key
-you haven't gotten yet.
-
-**Before that conversation can build anything**: get a free-tier Gemini API
-key at [aistudio.google.com](https://aistudio.google.com) and add it to
-`backend/.env` as `GEMINI_API_KEY` (not yet in `.env.example` — add it there
-too when wiring this up).
-
-**What it needs to build**, using patterns already established above:
-- A backend endpoint (e.g. `POST /api/entries/voice`) that takes raw
-  transcribed text, calls Gemini to extract `{ customerName, amount, note }`,
-  fuzzy-matches `customerName` against the shop's existing `Customer` rows,
-  and returns a *draft* — it must NOT write to `LedgerEntry` directly.
-- A mobile screen using on-device speech-to-text (not yet chosen/installed —
-  research an Expo-compatible library) that sends the transcript to that
-  endpoint, then shows a **confirmation/edit screen** (reuse the form fields
-  from `app/(app)/daily-entry/new.tsx`) pre-filled with the draft. Only on
-  explicit confirm does it call the existing `POST /api/entries` — this is
-  the brief's hard rule ("AI-extracted data must always go through human
-  confirmation before saving") and `LedgerEntry.isConfirmed` /
-  `rawVoiceText` / `aiConfidence` already exist in the schema for exactly
-  this.
-- Reuse `src/lib/api.ts`'s `authedFetch` pattern for the new endpoint call,
-  and the Customers/Daily-Entry nested-stack navigation pattern if this
-  becomes its own route rather than a mode within `daily-entry/new.tsx`.
+- Test the voice-to-data on-device recording UI on a real device or
+  simulator (the backend half is already verified — see above): tap
+  "🎤 Add by Voice" → record → land on the confirm screen pre-filled with the
+  draft → save → confirm the `LedgerEntry` row has `source: "VOICE"` set.
+  Worth speaking a name that's a near-miss for an existing customer (to
+  exercise the fuzzy-match warning path in `voice-confirm.tsx`) in addition
+  to a clean match.
+- Reports: try the new Reports tab on-device (ranked list → tap a customer →
+  statement). Revisit date-range filtering/pagination if a shop's entry
+  history grows large enough for the unpaginated `getCustomerStatement` query
+  to matter.

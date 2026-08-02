@@ -1,20 +1,15 @@
 import { Picker } from "@react-native-picker/picker";
 import { useEffect, useState } from "react";
 import { useRouter } from "expo-router";
-import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { Alert } from "react-native";
 import { createEntry, listCustomers } from "../../../src/lib/api";
 import type { Customer } from "../../../src/types";
+import { Button } from "../../../src/components/Button";
+import { EmptyState } from "../../../src/components/EmptyState";
+import { LoadingView } from "../../../src/components/LoadingView";
+import { PickerField } from "../../../src/components/PickerField";
+import { Screen } from "../../../src/components/Screen";
+import { TextField } from "../../../src/components/TextField";
 
 export default function NewEntry() {
   const router = useRouter();
@@ -56,90 +51,48 @@ export default function NewEntry() {
   }
 
   if (customers === null) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" />
-      </View>
-    );
+    return <LoadingView />;
   }
 
   if (customers.length === 0) {
     return (
-      <View style={styles.center}>
-        <Text style={styles.emptyText}>
-          You don't have any active customers yet. Add one from the Customers tab first.
-        </Text>
-      </View>
+      <EmptyState
+        icon="person-add-outline"
+        title="No active customers"
+        description="Add one from the Customers tab before logging an entry."
+      />
     );
   }
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.label}>Customer *</Text>
-        <View style={styles.pickerWrapper}>
-          <Picker selectedValue={customerId} onValueChange={setCustomerId}>
-            <Picker.Item label="Select a customer..." value="" />
-            {customers.map((c) => (
-              <Picker.Item key={c.id} label={c.name} value={c.id} />
-            ))}
-          </Picker>
-        </View>
+    <Screen scroll>
+      <PickerField label="Customer" icon="person-outline" required selectedValue={customerId} onValueChange={setCustomerId}>
+        <Picker.Item label="Select a customer..." value="" />
+        {customers.map((c) => (
+          <Picker.Item key={c.id} label={c.name} value={c.id} />
+        ))}
+      </PickerField>
 
-        <Text style={styles.label}>Amount *</Text>
-        <TextInput
-          style={styles.input}
-          value={amount}
-          onChangeText={setAmount}
-          placeholder="0"
-          keyboardType="decimal-pad"
-        />
+      <TextField
+        label="Amount"
+        icon="cash-outline"
+        required
+        value={amount}
+        onChangeText={setAmount}
+        placeholder="0"
+        keyboardType="decimal-pad"
+      />
 
-        <Text style={styles.label}>Note (optional)</Text>
-        <TextInput
-          style={[styles.input, styles.multiline]}
-          value={note}
-          onChangeText={setNote}
-          placeholder="e.g. rice, oil, soap"
-          multiline
-        />
+      <TextField
+        label="Note (optional)"
+        icon="document-text-outline"
+        value={note}
+        onChangeText={setNote}
+        placeholder="e.g. rice, oil, soap"
+        multiline
+      />
 
-        <Pressable style={styles.saveButton} onPress={handleSave} disabled={isSaving}>
-          <Text style={styles.saveButtonText}>{isSaving ? "Saving..." : "Save Entry"}</Text>
-        </Pressable>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      <Button label="Save Entry" onPress={handleSave} loading={isSaving} style={{ marginTop: 8 }} />
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { padding: 20, gap: 4 },
-  center: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
-  emptyText: { fontSize: 16, color: "#666", textAlign: "center" },
-  label: { fontSize: 14, fontWeight: "600", color: "#444", marginTop: 12 },
-  pickerWrapper: {
-    borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 8,
-    marginTop: 4,
-    overflow: "hidden",
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 16,
-    marginTop: 4,
-  },
-  multiline: { minHeight: 80, textAlignVertical: "top" },
-  saveButton: {
-    backgroundColor: "#1a73e8",
-    paddingVertical: 16,
-    alignItems: "center",
-    borderRadius: 10,
-    marginTop: 24,
-  },
-  saveButtonText: { color: "#fff", fontSize: 16, fontWeight: "700" },
-});

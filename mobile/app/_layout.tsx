@@ -1,7 +1,9 @@
 import { Slot, useRouter, useSegments } from "expo-router";
 import { useEffect } from "react";
-import { ActivityIndicator, View } from "react-native";
+import { StatusBar } from "expo-status-bar";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider, useAuth } from "../src/context/AuthContext";
+import { LoadingView } from "../src/components/LoadingView";
 
 function RootNavigator() {
   const { session, appUser, isLoading } = useAuth();
@@ -22,11 +24,7 @@ function RootNavigator() {
   }, [session, appUser, isLoading, segments]);
 
   if (isLoading) {
-    return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-        <ActivityIndicator size="large" />
-      </View>
-    );
+    return <LoadingView />;
   }
 
   return <Slot />;
@@ -34,8 +32,11 @@ function RootNavigator() {
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <RootNavigator />
-    </AuthProvider>
+    <SafeAreaProvider>
+      <AuthProvider>
+        <StatusBar style="dark" />
+        <RootNavigator />
+      </AuthProvider>
+    </SafeAreaProvider>
   );
 }

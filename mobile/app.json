@@ -2,6 +2,7 @@
   "expo": {
     "name": "Grocery Ledger",
     "slug": "grocery-ledger",
+    "owner": "sathishdeveloper27",
     "scheme": "grocery-ledger",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -11,20 +12,46 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.sathishdeveloper27.groceryledger",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#DCFCE7",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-router",
-      "expo-web-browser"
-    ]
+      "expo-web-browser",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Allow Grocery Ledger to access your microphone to record voice entries."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Grocery Ledger to access your photos to import a notebook page.",
+          "cameraPermission": "Allow Grocery Ledger to access your camera to photograph a notebook page."
+        }
+      ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "b9c34b72-68c4-4b12-8527-a2ca9394a467"
+      }
+    }
   }
 }
